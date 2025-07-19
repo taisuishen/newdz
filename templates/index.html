@@ -683,6 +683,12 @@
                             <div id="community-cards-container"></div>
                         </div>
                     </div>
+                    
+                    <!-- 手牌公开展示区域 -->
+                    <div id="showdown-cards" style="display: none; margin-top: 15px; padding: 10px; background: rgba(0, 0, 0, 0.6); border-radius: 8px; max-height: 200px; overflow-y: auto;">
+                        <div style="color: #ffd700; font-weight: bold; text-align: center; margin-bottom: 10px; font-size: 14px;">🃏 所有玩家手牌公开</div>
+                        <div id="showdown-cards-content"></div>
+                    </div>
                 </div>
                 
                 <!-- 8个座位 -->
@@ -786,6 +792,19 @@
             <p>多名玩家全押，正在展示所有公共牌...</p>
             <div id="showdownTimer">剩余时间: <span id="timerSeconds">5</span> 秒</div>
             <div id="allCommunityCards" style="margin-top: 20px;"></div>
+            <div id="showdownPlayerCards" style="margin-top: 15px; display: none;">
+                <h4 style="margin: 0 0 10px 0; color: #3498db;">所有玩家手牌</h4>
+                <div id="showdownPlayerCardsContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 手牌展示模态框 -->
+    <div id="finalHandModal" class="modal">
+        <div class="modal-content hand-result-modal">
+            <h2>🃏 手牌展示</h2>
+            <div id="finalHandContent"></div>
+            <button onclick="closeFinalHandModal()" style="margin-top: 20px; padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">确认</button>
         </div>
     </div>
 
@@ -1016,6 +1035,11 @@
                 if (data.hand_results && !hasConfirmedHandResult) {
                     showHandResultModal(data.hand_results);
                 }
+                // 显示最终手牌展示弹窗（只显示一次）
+                if (!hasFinalHandModalShown) {
+                    hasFinalHandModalShown = true;
+                    showFinalHandModal();
+                }
             } else {
                 // 当游戏状态不是hand_ended时，确保手牌结果模态框关闭
                 hideShowdownModal();
@@ -1023,8 +1047,15 @@
                 if (handResultModal) {
                     handResultModal.style.display = 'none';
                 }
+                const finalHandModal = document.getElementById('finalHandModal');
+                if (finalHandModal) {
+                    finalHandModal.style.display = 'none';
+                }
+                // 隐藏牌桌上的手牌展示
+                hidePlayerCardsOnTable();
                 // 重置确认标志，为下一局做准备
                 hasConfirmedHandResult = false;
+                hasFinalHandModalShown = false;
             }
         }
         
@@ -1391,6 +1422,8 @@
             const modal = document.getElementById('showdownModal');
             const timerElement = document.getElementById('timerSeconds');
             const cardsElement = document.getElementById('allCommunityCards');
+            const playerCardsArea = document.getElementById('showdownPlayerCards');
+            const playerCardsContent = document.getElementById('showdownPlayerCardsContent');
             
             // 显示所有公共牌
             if (gameState.community_cards && gameState.community_cards.length > 0) {
@@ -1404,6 +1437,31 @@
                     cardElement.textContent = card.rank + card.suit;
                     cardsElement.appendChild(cardElement);
                 });
+            }
+            
+            // 显示所有玩家手牌（如果有hand_results数据）
+            if (gameState.hand_results && gameState.hand_results.all_player_cards) {
+                let html = '';
+                Object.entries(gameState.hand_results.all_player_cards).forEach(([playerId, playerData]) => {
+                    const holeCards = playerData.hole_cards || [];
+                    const handStrength = playerData.hand_strength;
+                    
+                    html += `<div style="margin: 5px 0; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 5px; border-left: 3px solid #3498db;">`;
+                    html += `<strong style="color: #ecf0f1;">${playerId}:</strong> `;
+                    
+                    // 显示手牌
+                    holeCards.forEach(card => {
+                        const cardColor = (card.suit === '♥' || card.suit === '♦') ? 'color: red;' : 'color: black;';
+                        html += `<span style="${cardColor} background: white; padding: 2px 6px; margin: 0 2px; border-radius: 3px; font-weight: bold; font-size: 12px;">${card.rank}${card.suit}</span>`;
+                    });
+                    
+                    html += ` - <span style="color: #e74c3c; font-weight: bold;">${getHandStrengthText(handStrength)}</span></div>`;
+                });
+                
+                playerCardsContent.innerHTML = html;
+                playerCardsArea.style.display = 'block';
+            } else {
+                playerCardsArea.style.display = 'none';
             }
             
             timerElement.textContent = gameState.remaining_time || 5;
@@ -1422,6 +1480,29 @@
             const content = document.getElementById('handResultContent');
             
             let html = '';
+            
+            // 如果有all_player_cards数据，在弹窗中显示所有玩家手牌
+            if (handResults.all_player_cards) {
+                html += '<div style="margin-bottom: 15px; padding: 10px; background: rgba(52, 152, 219, 0.1); border-radius: 5px;"><h4 style="margin: 0 0 10px 0; color: #3498db;">所有玩家手牌</h4>';
+                
+                Object.entries(handResults.all_player_cards).forEach(([playerId, playerData]) => {
+                    const holeCards = playerData.hole_cards || [];
+                    const handStrength = playerData.hand_strength;
+                    
+                    html += `<div style="margin: 5px 0; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 3px;">`;
+                    html += `<strong>${playerId}:</strong> `;
+                    
+                    // 显示手牌
+                    holeCards.forEach(card => {
+                        const cardColor = (card.suit === '♥' || card.suit === '♦') ? 'color: red;' : 'color: black;';
+                        html += `<span style="${cardColor} background: white; padding: 2px 4px; margin: 0 2px; border-radius: 2px; font-weight: bold;">${card.rank}${card.suit}</span>`;
+                    });
+                    
+                    html += ` - ${getHandStrengthText(handStrength)}</div>`;
+                });
+                
+                html += '</div>';
+            }
             
             handResults.forEach(result => {
                 const gainClass = result.net_gain > 0 ? 'net-gain-positive' : 
@@ -1460,8 +1541,71 @@
             modal.style.display = 'block';
         }
         
+        // 在牌桌上显示所有玩家手牌
+        function showPlayerCardsOnTable(allPlayerCards) {
+            const showdownArea = document.getElementById('showdown-cards');
+            const content = document.getElementById('showdown-cards-content');
+            
+            let html = '';
+            
+            Object.entries(allPlayerCards).forEach(([playerId, playerData]) => {
+                const holeCards = playerData.hole_cards || [];
+                const handStrength = playerData.hand_strength;
+                
+                html += `
+                    <div style="margin: 8px 0; padding: 8px; background: rgba(44, 62, 80, 0.6); border-radius: 5px; border-left: 3px solid #3498db;">
+                        <div style="font-weight: bold; color: #ecf0f1; margin-bottom: 5px; font-size: 12px;">${playerId}</div>
+                        <div style="display: flex; gap: 3px; margin-bottom: 5px; justify-content: center;">
+                `;
+                
+                // 显示手牌
+                holeCards.forEach(card => {
+                    const cardColor = (card.suit === '♥' || card.suit === '♦') ? 'color: red;' : 'color: black;';
+                    html += `<div class="card" style="${cardColor} background: white; width: 25px; height: 35px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold;">${card.rank}${card.suit}</div>`;
+                });
+                
+                html += `
+                        </div>
+                        <div style="color: #e74c3c; font-size: 10px; font-weight: bold; text-align: center;">${getHandStrengthText(handStrength)}</div>
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = html;
+            showdownArea.style.display = 'block';
+        }
+        
+        // 隐藏牌桌上的手牌展示
+        function hidePlayerCardsOnTable() {
+            const showdownArea = document.getElementById('showdown-cards');
+            showdownArea.style.display = 'none';
+        }
+        
+        // 辅助函数：将手牌强度转换为可读文本
+        function getHandStrengthText(handStrength) {
+            if (!handStrength || !handStrength[0]) return '高牌';
+            
+            const rank = handStrength[0];
+            const handTypes = {
+                1: '高牌',
+                2: '一对',
+                3: '两对',
+                4: '三条',
+                5: '顺子',
+                6: '同花',
+                7: '葫芦',
+                8: '四条',
+                9: '同花顺',
+                10: '皇家同花顺'
+            };
+            
+            return handTypes[rank] || '高牌';
+        }
+        
         // 用于跟踪当前玩家是否已确认手牌结果
         let hasConfirmedHandResult = false;
+        // 用于跟踪是否已显示最终手牌弹窗
+        let hasFinalHandModalShown = false;
         
         function confirmHandResult() {
             // 标记当前玩家已确认
@@ -1484,6 +1628,91 @@
                 loadGameState();
             });
         }
+        
+        // 显示最终手牌展示弹窗
+        async function showFinalHandModal() {
+            try {
+                const response = await fetch('/api/get_hand_results');
+                const data = await response.json();
+                
+                console.log('获取到的手牌结果数据:', data);
+                
+                if (data.success) {
+                    const modal = document.getElementById('finalHandModal');
+                    const content = document.getElementById('finalHandContent');
+                    
+                    let html = '';
+                    
+                    // 显示公共牌
+                    html += '<div style="margin-bottom: 15px; text-align: center;">';
+                    html += '<h4 style="margin: 0 0 10px 0; color: #ffd700;">🃏 公共牌</h4>';
+                    html += '<div style="display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; min-height: 40px; align-items: center;">';
+                    
+                    if (data.community_cards && data.community_cards.length > 0) {
+                        data.community_cards.forEach(card => {
+                            const cardColor = (card.suit === '♥' || card.suit === '♦') ? 'color: red;' : 'color: black;';
+                            html += `<div style="${cardColor} background: white; padding: 8px 6px; border-radius: 5px; font-weight: bold; font-size: 14px; min-width: 30px; text-align: center;">${card.rank}${card.suit}</div>`;
+                        });
+                    } else {
+                        html += '<div style="color: #95a5a6; font-style: italic;">无公共牌</div>';
+                    }
+                    
+                    html += '</div></div>';
+                    
+                    // 显示所有玩家手牌
+                    if (data.all_player_cards && Object.keys(data.all_player_cards).length > 0) {
+                        html += '<div style="margin-bottom: 15px;">';
+                        html += '<h4 style="margin: 0 0 10px 0; color: #3498db;">👥 所有玩家手牌</h4>';
+                        
+                        Object.entries(data.all_player_cards).forEach(([playerId, playerData]) => {
+                            if (!playerData.folded) {
+                                html += `<div style="margin: 8px 0; padding: 10px; background: rgba(52, 73, 94, 0.8); border-radius: 5px; border-left: 4px solid #3498db;">`;
+                                html += `<div style="font-weight: bold; color: #ecf0f1; margin-bottom: 5px;">${playerId}</div>`;
+                                html += '<div style="display: flex; gap: 5px; margin-bottom: 5px; justify-content: center;">';
+                                
+                                // 显示手牌
+                                playerData.hole_cards.forEach(card => {
+                                    const cardColor = (card.suit === '♥' || card.suit === '♦') ? 'color: red;' : 'color: black;';
+                                    html += `<div style="${cardColor} background: white; padding: 6px 4px; border-radius: 3px; font-weight: bold; font-size: 12px; min-width: 25px; text-align: center;">${card.rank}${card.suit}</div>`;
+                                });
+                                
+                                html += '</div>';
+                                html += `<div style="color: #e74c3c; font-weight: bold; text-align: center; font-size: 12px;">${getHandStrengthText(playerData.hand_strength)}</div>`;
+                                html += '</div>';
+                            }
+                        });
+                        
+                        html += '</div>';
+                    }
+                    
+                    // 显示获胜者信息
+                    if (data.winners && data.winners.length > 0) {
+                        html += '<div style="margin-top: 15px; padding: 10px; background: linear-gradient(135deg, #ffd700, #ffed4e); color: #2c3e50; border-radius: 8px; text-align: center;">';
+                        html += '<h4 style="margin: 0 0 5px 0;">🏆 获胜者</h4>';
+                        html += `<div style="font-weight: bold;">${data.winners.join(', ')}</div>`;
+                        if (data.pot_amount) {
+                            html += `<div style="margin-top: 5px;">奖金: ¥${data.pot_amount}</div>`;
+                        }
+                        html += '</div>';
+                    }
+                    
+                    content.innerHTML = html;
+                    modal.style.display = 'block';
+                } else {
+                    console.log('无法获取手牌信息:', data.message);
+                }
+            } catch (error) {
+                console.error('获取手牌信息失败:', error);
+            }
+        }
+        
+        // 关闭最终手牌展示弹窗
+        function closeFinalHandModal() {
+            const modal = document.getElementById('finalHandModal');
+            modal.style.display = 'none';
+            // 不在这里重置标志，避免立即重新弹出
+            // hasFinalHandModalShown标志只在游戏状态改变时重置
+        }
 
         // 页面加载完成后自动加入游戏
         document.addEventListener('DOMContentLoaded', function() {
@@ -1499,9 +1728,13 @@
 
         // 点击模态框外部关闭
         window.onclick = function(event) {
-            const modal = document.getElementById('addChipsModal');
-            if (event.target === modal) {
+            const addChipsModal = document.getElementById('addChipsModal');
+            const finalHandModal = document.getElementById('finalHandModal');
+            
+            if (event.target === addChipsModal) {
                 closeAddChipsModal();
+            } else if (event.target === finalHandModal) {
+                closeFinalHandModal();
             }
         }
 

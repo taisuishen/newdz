@@ -1,79 +1,111 @@
 {
   "players": {
-    "player2": {
-      "id": "player2",
-      "chips": 970,
-      "borrow_count": 2,
-      "position": 1,
-      "joined_at": "2025-07-19T14:33:06.275901",
-      "current_bet": 20,
-      "hole_cards": [
-        {
-          "suit": "♠",
-          "rank": "J"
-        },
-        {
-          "suit": "♠",
-          "rank": "10"
-        }
-      ],
-      "folded": false,
-      "all_in": false
-    },
     "player1": {
       "id": "player1",
+      "chips": 0,
+      "borrow_count": 1,
+      "position": 1,
+      "joined_at": "2025-07-19T16:18:18.890484",
+      "current_bet": 0,
+      "wins": 0,
+      "losses": 1
+    },
+    "player2": {
+      "id": "player2",
       "chips": 2000,
       "borrow_count": 1,
       "position": 2,
-      "joined_at": "2025-07-19T14:33:15.126722",
-      "current_bet": 10,
-      "hole_cards": [
-        {
-          "suit": "♠",
-          "rank": "3"
-        },
-        {
-          "suit": "♣",
-          "rank": "2"
-        }
-      ],
-      "folded": false,
-      "all_in": false
+      "joined_at": "2025-07-19T16:18:22.239074",
+      "current_bet": 0,
+      "wins": 1,
+      "losses": 0
     }
   },
-  "game_state": "playing",
-  "current_pot": 30,
-  "dealer_position": 1,
-  "current_player": 2,
+  "game_state": "hand_ended",
+  "current_pot": 0,
+  "dealer_position": 2,
+  "current_player": null,
   "betting_round": "preflop",
   "community_cards": [],
   "deck": [
     {
-      "suit": "♣",
-      "rank": "6"
+      "suit": "♦",
+      "rank": "3"
+    },
+    {
+      "suit": "♦",
+      "rank": "2"
+    },
+    {
+      "suit": "♦",
+      "rank": "Q"
+    },
+    {
+      "suit": "♥",
+      "rank": "A"
+    },
+    {
+      "suit": "♠",
+      "rank": "3"
     },
     {
       "suit": "♥",
       "rank": "2"
     },
     {
-      "suit": "♦",
-      "rank": "K"
+      "suit": "♣",
+      "rank": "3"
     },
     {
       "suit": "♠",
+      "rank": "7"
+    },
+    {
+      "suit": "♣",
+      "rank": "5"
+    },
+    {
+      "suit": "♠",
+      "rank": "K"
+    },
+    {
+      "suit": "♥",
+      "rank": "9"
+    },
+    {
+      "suit": "♠",
+      "rank": "J"
+    },
+    {
+      "suit": "♦",
+      "rank": "9"
+    },
+    {
+      "suit": "♦",
+      "rank": "5"
+    },
+    {
+      "suit": "♠",
+      "rank": "10"
+    },
+    {
+      "suit": "♠",
+      "rank": "2"
+    },
+    {
+      "suit": "♥",
       "rank": "4"
+    },
+    {
+      "suit": "♦",
+      "rank": "7"
     },
     {
       "suit": "♠",
       "rank": "6"
     },
     {
-      "suit": "♠",
-      "rank": "K"
-    },
-    {
-      "suit": "♣",
+      "suit": "♦",
       "rank": "10"
     },
     {
@@ -85,8 +117,28 @@
       "rank": "4"
     },
     {
+      "suit": "♣",
+      "rank": "7"
+    },
+    {
       "suit": "♥",
-      "rank": "6"
+      "rank": "7"
+    },
+    {
+      "suit": "♦",
+      "rank": "8"
+    },
+    {
+      "suit": "♥",
+      "rank": "8"
+    },
+    {
+      "suit": "♠",
+      "rank": "8"
+    },
+    {
+      "suit": "♠",
+      "rank": "A"
     },
     {
       "suit": "♠",
@@ -94,43 +146,39 @@
     },
     {
       "suit": "♥",
-      "rank": "A"
-    },
-    {
-      "suit": "♦",
-      "rank": "3"
-    },
-    {
-      "suit": "♣",
-      "rank": "8"
-    },
-    {
-      "suit": "♦",
-      "rank": "8"
-    },
-    {
-      "suit": "♥",
       "rank": "J"
-    },
-    {
-      "suit": "♣",
-      "rank": "J"
-    },
-    {
-      "suit": "♥",
-      "rank": "5"
     },
     {
       "suit": "♠",
-      "rank": "8"
+      "rank": "4"
     },
     {
       "suit": "♣",
-      "rank": "K"
+      "rank": "8"
     },
     {
       "suit": "♦",
+      "rank": "6"
+    },
+    {
+      "suit": "♣",
+      "rank": "Q"
+    },
+    {
+      "suit": "♦",
+      "rank": "A"
+    },
+    {
+      "suit": "♥",
+      "rank": "Q"
+    },
+    {
+      "suit": "♠",
       "rank": "5"
+    },
+    {
+      "suit": "♥",
+      "rank": "3"
     },
     {
       "suit": "♥",
@@ -138,131 +186,140 @@
     },
     {
       "suit": "♥",
-      "rank": "7"
-    },
-    {
-      "suit": "♣",
-      "rank": "5"
-    },
-    {
-      "suit": "♦",
-      "rank": "10"
-    },
-    {
-      "suit": "♣",
-      "rank": "7"
-    },
-    {
-      "suit": "♥",
-      "rank": "3"
-    },
-    {
-      "suit": "♠",
-      "rank": "A"
-    },
-    {
-      "suit": "♠",
-      "rank": "7"
-    },
-    {
-      "suit": "♥",
-      "rank": "Q"
-    },
-    {
-      "suit": "♦",
-      "rank": "9"
+      "rank": "K"
     },
     {
       "suit": "♠",
       "rank": "Q"
     },
     {
-      "suit": "♥",
-      "rank": "4"
-    },
-    {
-      "suit": "♥",
-      "rank": "9"
-    },
-    {
-      "suit": "♠",
-      "rank": "5"
-    },
-    {
-      "suit": "♦",
-      "rank": "7"
-    },
-    {
       "suit": "♣",
-      "rank": "9"
-    },
-    {
-      "suit": "♣",
-      "rank": "4"
+      "rank": "J"
     },
     {
       "suit": "♦",
       "rank": "J"
-    },
-    {
-      "suit": "♣",
-      "rank": "Q"
-    },
-    {
-      "suit": "♠",
-      "rank": "2"
-    },
-    {
-      "suit": "♣",
-      "rank": "3"
-    },
-    {
-      "suit": "♦",
-      "rank": "A"
-    },
-    {
-      "suit": "♥",
-      "rank": "K"
-    },
-    {
-      "suit": "♦",
-      "rank": "Q"
-    },
-    {
-      "suit": "♦",
-      "rank": "2"
-    },
-    {
-      "suit": "♥",
-      "rank": "8"
-    },
-    {
-      "suit": "♦",
-      "rank": "6"
     }
   ],
   "side_pots": [],
   "min_bet": 20,
   "ready_players": [],
   "ready_start_time": null,
-  "action_start_time": 1752907918.3481896,
+  "action_start_time": 1752913106.553674,
   "timers": {},
-  "showdown_start_time": 1752906806.8252287,
+  "first_to_act": null,
+  "hand_id": "5ca6561d-64ff-4cdc-84b1-f773359b4e9c",
+  "showdown_start_time": 1752913106.5536945,
   "hand_results": {
-    "type": "single_winner",
+    "type": "showdown",
     "winners": [
       {
-        "player_id": "player1",
-        "pot_won": 30,
-        "net_gain": 10,
-        "hand_strength": null
+        "player_id": "player2",
+        "pot_won": 2000,
+        "net_gain": 2000,
+        "hand_strength": [
+          5,
+          [
+            13,
+            10,
+            9,
+            6,
+            4
+          ]
+        ]
+      }
+    ],
+    "all_hands": {
+      "player1": [
+        1,
+        [
+          13,
+          10,
+          6,
+          5
+        ]
+      ],
+      "player2": [
+        5,
+        [
+          13,
+          10,
+          9,
+          6,
+          4
+        ]
+      ]
+    },
+    "all_player_cards": {
+      "player1": {
+        "hole_cards": [
+          {
+            "suit": "♥",
+            "rank": "6"
+          },
+          {
+            "suit": "♦",
+            "rank": "K"
+          }
+        ],
+        "hand_strength": [
+          1,
+          [
+            13,
+            10,
+            6,
+            5
+          ]
+        ]
+      },
+      "player2": {
+        "hole_cards": [
+          {
+            "suit": "♣",
+            "rank": "9"
+          },
+          {
+            "suit": "♣",
+            "rank": "6"
+          }
+        ],
+        "hand_strength": [
+          5,
+          [
+            13,
+            10,
+            9,
+            6,
+            4
+          ]
+        ]
+      }
+    },
+    "community_cards": [
+      {
+        "suit": "♣",
+        "rank": "2"
+      },
+      {
+        "suit": "♣",
+        "rank": "K"
+      },
+      {
+        "suit": "♣",
+        "rank": "10"
+      },
+      {
+        "suit": "♥",
+        "rank": "5"
+      },
+      {
+        "suit": "♣",
+        "rank": "4"
       }
     ]
   },
-  "hand_end_time": 1752906892.0752416,
-  "first_to_act": null,
+  "hand_end_time": 1752913112.0677311,
   "confirmed_players": [
-    "player2"
-  ],
-  "hand_id": "3d928b73-009b-446c-837c-a91528dd5f41"
+    "player1"
+  ]
 }
