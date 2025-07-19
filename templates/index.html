@@ -677,6 +677,8 @@
                 if (result.success) {
                     currentPlayer = result.player;
                     gameConfig = result.config;
+                    // 保存玩家ID到sessionStorage
+                    sessionStorage.setItem('player_id', playerId);
                     showGameScreen();
                     updatePlayerInfo();
                     updateGameConfig();
@@ -748,7 +750,7 @@
                 const response = await fetch('/api/get_game_state');
                 const result = await response.json();
                 
-                updateSeats(result.players, result.current_player, result.dealer_position);
+                updateSeats(result.players, result.current_player, result.dealer_position, result.ready_players);
                 gameConfig = result.config;
                 updateGameConfig();
                 updateStartButton(result.players, result.game_state);
@@ -783,7 +785,7 @@
                 gameInfo.style.display = 'none';
                 
                 // 检查当前玩家是否已选择座位
-                const currentPlayerId = currentPlayer ? currentPlayer.id : null;
+                const currentPlayerId = getCurrentPlayerId();
                 const hasPosition = currentPlayerId && players[currentPlayerId] && players[currentPlayerId].position !== null;
                 
                 if (hasPosition) {
@@ -863,7 +865,7 @@
             const callBtn = document.getElementById('call-btn');
             
             // 检查是否轮到当前玩家
-            const currentPlayerId = currentPlayer ? currentPlayer.id : null;
+            const currentPlayerId = getCurrentPlayerId();
             const player = data.players[currentPlayerId];
             
             if (data.game_state === 'playing' && player && 
@@ -898,6 +900,11 @@
             }
         }
         
+        // 获取当前玩家ID
+        function getCurrentPlayerId() {
+            return sessionStorage.getItem('player_id');
+        }
+        
         // 更新准备状态
         function updateReadyStatus(data) {
             const readyBtn = document.getElementById('ready-btn');
@@ -906,7 +913,7 @@
             
             if (!readyBtn) return;
             
-            const currentPlayerId = currentPlayer ? currentPlayer.id : null;
+            const currentPlayerId = getCurrentPlayerId();
             const isReady = data.ready_players && data.ready_players.includes(currentPlayerId);
             
             // 更新准备按钮
@@ -943,7 +950,7 @@
         
         // 切换准备状态
         async function toggleReady() {
-            const currentPlayerId = currentPlayer ? currentPlayer.id : null;
+            const currentPlayerId = getCurrentPlayerId();
             if (!currentPlayerId) {
                 alert('请先加入游戏');
                 return;
@@ -1032,7 +1039,7 @@
         }
 
         // 更新座位显示
-        function updateSeats(players, currentPlayerPosition, dealerPosition) {
+        function updateSeats(players, currentPlayerPosition, dealerPosition, readyPlayers = []) {
             // 清除所有座位状态
             document.querySelectorAll('.player-seat').forEach(seat => {
                 seat.classList.remove('occupied', 'current-player');
@@ -1082,7 +1089,7 @@
                         }
                         
                         // 显示准备状态
-                        if (data.ready_players && data.ready_players.includes(player.id)) {
+                        if (readyPlayers && readyPlayers.includes(player.id)) {
                             seat.classList.add('player-ready');
                         } else {
                             seat.classList.remove('player-ready');
