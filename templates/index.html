@@ -223,7 +223,7 @@
             display: none;
         }
 
-        .start-game-btn {
+        .start-game-btn, .ready-btn {
             background: linear-gradient(45deg, #e74c3c, #c0392b);
             color: white;
             border: none;
@@ -235,17 +235,44 @@
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
             margin-bottom: 10px;
+            margin: 5px;
         }
 
-        .start-game-btn:hover:not(:disabled) {
+        .start-game-btn:hover:not(:disabled), .ready-btn:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
         }
 
-        .start-game-btn:disabled {
+        .start-game-btn:disabled, .ready-btn:disabled {
             background: #7f8c8d;
             cursor: not-allowed;
             box-shadow: none;
+        }
+        
+        .ready-btn {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .ready-btn.ready {
+            background: linear-gradient(45deg, #ff9800, #f57c00);
+        }
+        
+        #ready-status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        #countdown-timer {
+            margin-top: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ff4444;
+        }
+        
+        .player-ready {
+            border: 2px solid #4CAF50;
         }
 
         .game-status {
@@ -518,6 +545,13 @@
                     </button>
                     <div id="gameStatus" class="game-status">等待玩家加入...</div>
                     
+                    <!-- 准备系统 -->
+                    <div id="ready-section" style="display: none;">
+                        <button id="ready-btn" onclick="toggleReady()" class="ready-btn">准备</button>
+                        <div id="ready-status">等待其他玩家准备...</div>
+                        <div id="countdown-timer" style="display: none;"></div>
+                    </div>
+                    
                     <!-- 游戏信息区域 -->
                     <div id="game-info" style="display: none;">
                         <div class="pot-info">底池: ¥<span id="current-pot">0</span></div>
@@ -721,6 +755,7 @@
                 updateGameInfo(result);
                 updateMyCards(result.my_cards);
                 updateActionButtons(result);
+                updateReadyStatus(result);
             } catch (error) {
                 console.error('加载游戏状态失败:', error);
             }
@@ -731,23 +766,40 @@
             const startBtn = document.getElementById('startGameBtn');
             const statusDiv = document.getElementById('gameStatus');
             const gameInfo = document.getElementById('game-info');
+            const readySection = document.getElementById('ready-section');
             const playerCount = Object.keys(players).length;
             
             if (gameState === 'playing') {
                 startBtn.style.display = 'none';
+                readySection.style.display = 'none';
                 gameInfo.style.display = 'block';
                 statusDiv.textContent = '游戏进行中...';
-            } else {
-                startBtn.style.display = 'block';
+            } else if (gameState === 'ready_phase') {
+                startBtn.style.display = 'none';
+                readySection.style.display = 'block';
                 gameInfo.style.display = 'none';
-                if (playerCount >= 2) {
-                    startBtn.disabled = false;
-                    startBtn.textContent = '开始游戏';
-                    statusDiv.textContent = `${playerCount} 名玩家已准备`;
+            } else {
+                readySection.style.display = 'none';
+                gameInfo.style.display = 'none';
+                
+                // 检查当前玩家是否已选择座位
+                const currentPlayerId = currentPlayer ? currentPlayer.id : null;
+                const hasPosition = currentPlayerId && players[currentPlayerId] && players[currentPlayerId].position !== null;
+                
+                if (hasPosition) {
+                    startBtn.style.display = 'none';
+                    readySection.style.display = 'block';
                 } else {
-                    startBtn.disabled = true;
-                    startBtn.textContent = '等待玩家';
-                    statusDiv.textContent = `需要至少2名玩家 (当前: ${playerCount})`;
+                    startBtn.style.display = 'block';
+                    if (playerCount >= 2) {
+                        startBtn.disabled = false;
+                        startBtn.textContent = '开始游戏';
+                        statusDiv.textContent = `${playerCount} 名玩家已准备`;
+                    } else {
+                        startBtn.disabled = true;
+                        startBtn.textContent = '等待玩家';
+                        statusDiv.textContent = `需要至少2名玩家 (当前: ${playerCount})`;
+                    }
                 }
             }
         }
@@ -843,6 +895,81 @@
                 
             } else {
                 actionButtons.style.display = 'none';
+            }
+        }
+        
+        // 更新准备状态
+        function updateReadyStatus(data) {
+            const readyBtn = document.getElementById('ready-btn');
+            const readyStatus = document.getElementById('ready-status');
+            const countdownTimer = document.getElementById('countdown-timer');
+            
+            if (!readyBtn) return;
+            
+            const currentPlayerId = currentPlayer ? currentPlayer.id : null;
+            const isReady = data.ready_players && data.ready_players.includes(currentPlayerId);
+            
+            // 更新准备按钮
+            if (isReady) {
+                readyBtn.textContent = '取消准备';
+                readyBtn.classList.add('ready');
+            } else {
+                readyBtn.textContent = '准备';
+                readyBtn.classList.remove('ready');
+            }
+            
+            // 更新状态文本
+            const readyCount = data.ready_players ? data.ready_players.length : 0;
+            const totalPlayers = Object.keys(data.players).filter(id => data.players[id].position !== null).length;
+            readyStatus.textContent = `已准备: ${readyCount}/${totalPlayers}`;
+            
+            // 更新倒计时
+            if (data.remaining_time !== null && data.remaining_time !== undefined) {
+                const seconds = Math.ceil(data.remaining_time);
+                if (seconds > 0) {
+                    countdownTimer.style.display = 'block';
+                    if (data.game_state === 'ready_phase') {
+                        countdownTimer.textContent = `准备倒计时: ${seconds}秒`;
+                    } else if (data.game_state === 'playing') {
+                        countdownTimer.textContent = `行动倒计时: ${seconds}秒`;
+                    }
+                } else {
+                    countdownTimer.style.display = 'none';
+                }
+            } else {
+                countdownTimer.style.display = 'none';
+            }
+        }
+        
+        // 切换准备状态
+        async function toggleReady() {
+            const currentPlayerId = currentPlayer ? currentPlayer.id : null;
+            if (!currentPlayerId) {
+                alert('请先加入游戏');
+                return;
+            }
+            
+            try {
+                const gameState = await fetch('/api/get_game_state').then(r => r.json());
+                const isReady = gameState.ready_players && gameState.ready_players.includes(currentPlayerId);
+                
+                const endpoint = isReady ? '/api/player_unready' : '/api/player_ready';
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    loadGameState();
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('操作失败');
+                console.error(error);
             }
         }
         
@@ -952,6 +1079,13 @@
                                 <div class="card">🂠</div>
                                 <div class="card">🂠</div>
                             `;
+                        }
+                        
+                        // 显示准备状态
+                        if (data.ready_players && data.ready_players.includes(player.id)) {
+                            seat.classList.add('player-ready');
+                        } else {
+                            seat.classList.remove('player-ready');
                         }
                         
                         // 显示下注金额

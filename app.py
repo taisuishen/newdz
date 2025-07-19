@@ -3,6 +3,8 @@ import json
 import os
 import uuid
 import random
+import time
+import threading
 from datetime import datetime
 
 app = Flask(__name__)
@@ -16,13 +18,15 @@ GAME_DATA_FILE = 'game_data.json'
 DEFAULT_CONFIG = {
     'small_blind': 10,
     'big_blind': 20,
-    'buy_in_amount': 1000
+    'buy_in_amount': 1000,
+    'action_timeout': 30,  # 玩家行动超时时间（秒）
+    'ready_timeout': 60    # 准备超时时间（秒）
 }
 
 # 默认游戏数据
 DEFAULT_GAME_DATA = {
     'players': {},
-    'game_state': 'waiting',
+    'game_state': 'waiting',  # waiting, ready_phase, playing
     'current_pot': 0,
     'dealer_position': 0,
     'current_player': None,
@@ -30,7 +34,11 @@ DEFAULT_GAME_DATA = {
     'community_cards': [],
     'deck': [],
     'side_pots': [],
-    'min_bet': 0
+    'min_bet': 0,
+    'ready_players': [],  # 已准备的玩家
+    'ready_start_time': None,  # 准备阶段开始时间
+    'action_start_time': None,  # 当前玩家行动开始时间
+    'timers': {}  # 存储各种计时器
 }
 
 # 扑克牌定义
@@ -254,6 +262,83 @@ def add_chips():
         'message': f'成功添加 {amount} 筹码'
     })
 
+def check_timeouts(game_data, config):
+    """检查各种超时情况"""
+    current_time = time.time()
+    
+    # 检查准备阶段超时
+    if (game_data['game_state'] == 'ready_phase' and 
+        game_data.get('ready_start_time') and 
+        current_time - game_data['ready_start_time'] > config['ready_timeout']):
+        
+        # 踢出未准备的玩家
+        players_to_remove = []
+        ready_players = game_data.get('ready_players', set())
+        if isinstance(ready_players, list):
+            ready_players = set(ready_players)
+            
+        for player_id, player in game_data['players'].items():
+            if (player.get('position') is not None and 
+                player_id not in ready_players):
+                players_to_remove.append(player_id)
+        
+        for player_id in players_to_remove:
+            print(f"玩家 {player_id} 准备超时，被踢出游戏")
+            game_data['players'][player_id]['position'] = None
+            game_data['players'][player_id]['chips'] = 0
+        
+        # 从准备列表中移除被踢出的玩家
+        game_data['ready_players'] = ready_players - set(players_to_remove)
+        
+        # 重新检查是否可以开始游戏
+        remaining_players = [p for p in game_data['players'].values() if p.get('position') is not None]
+        if len(remaining_players) >= 2 and len(game_data['ready_players']) == len(remaining_players):
+            start_game_internal(game_data, config)
+        else:
+            # 重置到等待状态
+            game_data['game_state'] = 'waiting'
+            game_data['ready_players'] = set()
+            game_data['ready_start_time'] = None
+            
+        save_game_data(game_data)
+    
+    # 检查行动超时
+    elif (game_data['game_state'] == 'playing' and 
+          game_data.get('action_start_time') and 
+          current_time - game_data['action_start_time'] > config['action_timeout']):
+        
+        # 找到当前行动的玩家
+        current_player_pos = game_data.get('current_player')
+        current_player = None
+        current_player_id = None
+        
+        if current_player_pos:
+            for player_id, player in game_data['players'].items():
+                if player.get('position') == current_player_pos:
+                    current_player = player
+                    current_player_id = player_id
+                    break
+        
+        if current_player and not current_player.get('folded') and not current_player.get('all_in'):
+            # 自动过牌或弃牌
+            max_bet = max([p.get('current_bet', 0) for p in game_data['players'].values() if p.get('position') is not None], default=0)
+            if current_player.get('current_bet', 0) == max_bet:
+                # 可以过牌，不需要额外操作
+                print(f"玩家 {current_player_id} 行动超时，自动过牌")
+            else:
+                # 需要跟注，自动弃牌
+                current_player['folded'] = True
+                print(f"玩家 {current_player_id} 行动超时，自动弃牌")
+            
+            # 移动到下一个玩家
+            game_data['current_player'] = get_next_player_position(game_data, current_player_pos)
+            game_data['action_start_time'] = time.time()
+            
+            # 检查是否需要进入下一轮或结束游戏
+            check_betting_round_end(game_data)
+            
+            save_game_data(game_data)
+
 @app.route('/api/get_game_state')
 def get_game_state():
     """获取游戏状态"""
@@ -261,10 +346,22 @@ def get_game_state():
     config = load_config()
     player_id = session.get('player_id')
     
+    # 检查超时
+    check_timeouts(game_data, config)
+    
     # 为当前玩家提供手牌信息
     current_player_cards = None
     if player_id and player_id in game_data['players']:
         current_player_cards = game_data['players'][player_id].get('hole_cards', [])
+    
+    # 计算剩余时间
+    remaining_time = None
+    if game_data['game_state'] == 'ready_phase' and game_data.get('ready_start_time'):
+        elapsed = time.time() - game_data['ready_start_time']
+        remaining_time = max(0, config['ready_timeout'] - elapsed)
+    elif game_data['game_state'] == 'playing' and game_data.get('action_start_time'):
+        elapsed = time.time() - game_data['action_start_time']
+        remaining_time = max(0, config['action_timeout'] - elapsed)
     
     return jsonify({
         'players': game_data['players'],
@@ -276,7 +373,9 @@ def get_game_state():
         'betting_round': game_data.get('betting_round', 'preflop'),
         'min_bet': game_data.get('min_bet', 0),
         'dealer_position': game_data.get('dealer_position', 0),
-        'my_cards': current_player_cards
+        'my_cards': current_player_cards,
+        'ready_players': list(game_data.get('ready_players', set())),
+        'remaining_time': remaining_time
     })
 
 @app.route('/api/player_action', methods=['POST'])
@@ -366,6 +465,7 @@ def player_action():
     
     # 移动到下一个玩家
     game_data['current_player'] = get_next_player_position(game_data, player['position'])
+    game_data['action_start_time'] = time.time()  # 重置行动计时
     
     # 检查是否需要进入下一轮或结束游戏
     check_betting_round_end(game_data)
@@ -443,6 +543,7 @@ def next_betting_round(game_data):
             next_pos = positions[0]
         
         game_data['current_player'] = next_pos
+        game_data['action_start_time'] = time.time()  # 重置行动计时
     else:
         # 所有人都全押了，直接到摊牌
         end_hand(game_data)
@@ -501,27 +602,90 @@ def update_config():
     config['small_blind'] = int(data.get('small_blind', config['small_blind']))
     config['big_blind'] = int(data.get('big_blind', config['big_blind']))
     config['buy_in_amount'] = int(data.get('buy_in_amount', config['buy_in_amount']))
+    config['action_timeout'] = int(data.get('action_timeout', config['action_timeout']))
+    config['ready_timeout'] = int(data.get('ready_timeout', config['ready_timeout']))
     
     save_config(config)
     
     return jsonify({'success': True, 'message': '配置更新成功', 'config': config})
 
-@app.route('/api/start_game', methods=['POST'])
-def start_game():
-    """开始游戏"""
+@app.route('/api/player_ready', methods=['POST'])
+def player_ready():
+    """玩家准备"""
+    player_id = session.get('player_id')
+    if not player_id:
+        return jsonify({'success': False, 'message': '请先加入游戏'})
+    
     game_data = load_game_data()
     config = load_config()
     
+    if player_id not in game_data['players']:
+        return jsonify({'success': False, 'message': '玩家不存在'})
+    
+    if game_data['players'][player_id].get('position') is None:
+        return jsonify({'success': False, 'message': '请先选择座位'})
+    
+    if game_data['game_state'] not in ['waiting', 'ready_phase']:
+        return jsonify({'success': False, 'message': '当前无法准备'})
+    
+    # 添加到准备列表
+    if 'ready_players' not in game_data:
+        game_data['ready_players'] = []
+    
+    if player_id not in game_data['ready_players']:
+        game_data['ready_players'].append(player_id)
+    
+    # 如果是第一个准备的玩家，开始准备阶段
+    if game_data['game_state'] == 'waiting' and len(game_data['ready_players']) == 1:
+        game_data['game_state'] = 'ready_phase'
+        game_data['ready_start_time'] = time.time()
+    
+    # 检查是否所有玩家都准备好了
+    seated_players = [p for p in game_data['players'].values() if p.get('position') is not None]
+    if len(game_data['ready_players']) >= len(seated_players) and len(seated_players) >= 2:
+        # 所有人都准备好了，开始游戏
+        start_game_internal(game_data, config)
+    
+    save_game_data(game_data)
+    
+    return jsonify({'success': True, 'message': '准备成功'})
+
+@app.route('/api/player_unready', methods=['POST'])
+def player_unready():
+    """取消准备"""
+    player_id = session.get('player_id')
+    if not player_id:
+        return jsonify({'success': False, 'message': '请先加入游戏'})
+    
+    game_data = load_game_data()
+    
+    if game_data['game_state'] not in ['waiting', 'ready_phase']:
+        return jsonify({'success': False, 'message': '当前无法取消准备'})
+    
+    # 从准备列表中移除
+    if 'ready_players' not in game_data:
+        game_data['ready_players'] = []
+    
+    if player_id in game_data['ready_players']:
+        game_data['ready_players'].remove(player_id)
+    
+    # 如果没有人准备了，回到等待状态
+    if len(game_data['ready_players']) == 0:
+        game_data['game_state'] = 'waiting'
+        game_data['ready_start_time'] = None
+    
+    save_game_data(game_data)
+    
+    return jsonify({'success': True, 'message': '取消准备成功'})
+
+def start_game_internal(game_data, config):
+    """内部开始游戏函数"""
     # 检查有位置的玩家数量
     active_players = [p for p in game_data['players'].values() 
                      if p.get('position') is not None and p.get('chips', 0) > 0]
     
     if len(active_players) < 2:
-        return jsonify({'success': False, 'message': f'需要至少2名有座位的玩家才能开始游戏 (当前: {len(active_players)})'})
-    
-    # 检查游戏状态
-    if game_data['game_state'] == 'playing':
-        return jsonify({'success': False, 'message': '游戏已经在进行中'})
+        return False
     
     # 初始化游戏
     game_data['game_state'] = 'playing'
@@ -529,6 +693,8 @@ def start_game():
     game_data['current_pot'] = 0
     game_data['community_cards'] = []
     game_data['side_pots'] = []
+    game_data['ready_players'] = []
+    game_data['ready_start_time'] = None
     
     # 创建新牌组
     game_data['deck'] = create_deck()
@@ -544,9 +710,33 @@ def start_game():
     # 下盲注
     post_blinds(game_data, config)
     
-    save_game_data(game_data)
+    # 设置行动开始时间
+    game_data['action_start_time'] = time.time()
     
-    return jsonify({'success': True, 'message': '游戏开始！发牌完成，请下注。', 'game_state': 'playing'})
+    return True
+
+@app.route('/api/start_game', methods=['POST'])
+def start_game():
+    """手动开始游戏（管理员功能）"""
+    game_data = load_game_data()
+    config = load_config()
+    
+    # 检查有位置的玩家数量
+    active_players = [p for p in game_data['players'].values() 
+                     if p.get('position') is not None and p.get('chips', 0) > 0]
+    
+    if len(active_players) < 2:
+        return jsonify({'success': False, 'message': f'需要至少2名有座位的玩家才能开始游戏 (当前: {len(active_players)})'})
+    
+    # 检查游戏状态
+    if game_data['game_state'] == 'playing':
+        return jsonify({'success': False, 'message': '游戏已经在进行中'})
+    
+    if start_game_internal(game_data, config):
+        save_game_data(game_data)
+        return jsonify({'success': True, 'message': '游戏开始！发牌完成，请下注。', 'game_state': 'playing'})
+    else:
+        return jsonify({'success': False, 'message': '开始游戏失败'})
 
 @app.route('/api/reset_game', methods=['POST'])
 def reset_game():
