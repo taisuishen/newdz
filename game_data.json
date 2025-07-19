@@ -1,31 +1,268 @@
 {
   "players": {
-    "123": {
-      "id": "123",
-      "chips": 1000,
-      "win_loss": -1000,
-      "position": 8,
-      "joined_at": "2025-07-19T11:43:59.893601"
+    "player2": {
+      "id": "player2",
+      "chips": 970,
+      "borrow_count": 2,
+      "position": 1,
+      "joined_at": "2025-07-19T14:33:06.275901",
+      "current_bet": 20,
+      "hole_cards": [
+        {
+          "suit": "♠",
+          "rank": "J"
+        },
+        {
+          "suit": "♠",
+          "rank": "10"
+        }
+      ],
+      "folded": false,
+      "all_in": false
     },
-    "44": {
-      "id": "44",
-      "chips": 1000,
-      "win_loss": -1000,
+    "player1": {
+      "id": "player1",
+      "chips": 2000,
+      "borrow_count": 1,
       "position": 2,
-      "joined_at": "2025-07-19T11:44:21.084544"
+      "joined_at": "2025-07-19T14:33:15.126722",
+      "current_bet": 10,
+      "hole_cards": [
+        {
+          "suit": "♠",
+          "rank": "3"
+        },
+        {
+          "suit": "♣",
+          "rank": "2"
+        }
+      ],
+      "folded": false,
+      "all_in": false
     }
   },
-  "game_state": "waiting",
-  "current_pot": 0,
-  "dealer_position": 0,
-  "current_player": null,
+  "game_state": "playing",
+  "current_pot": 30,
+  "dealer_position": 1,
+  "current_player": 2,
   "betting_round": "preflop",
   "community_cards": [],
-  "deck": [],
+  "deck": [
+    {
+      "suit": "♣",
+      "rank": "6"
+    },
+    {
+      "suit": "♥",
+      "rank": "2"
+    },
+    {
+      "suit": "♦",
+      "rank": "K"
+    },
+    {
+      "suit": "♠",
+      "rank": "4"
+    },
+    {
+      "suit": "♠",
+      "rank": "6"
+    },
+    {
+      "suit": "♠",
+      "rank": "K"
+    },
+    {
+      "suit": "♣",
+      "rank": "10"
+    },
+    {
+      "suit": "♣",
+      "rank": "A"
+    },
+    {
+      "suit": "♦",
+      "rank": "4"
+    },
+    {
+      "suit": "♥",
+      "rank": "6"
+    },
+    {
+      "suit": "♠",
+      "rank": "9"
+    },
+    {
+      "suit": "♥",
+      "rank": "A"
+    },
+    {
+      "suit": "♦",
+      "rank": "3"
+    },
+    {
+      "suit": "♣",
+      "rank": "8"
+    },
+    {
+      "suit": "♦",
+      "rank": "8"
+    },
+    {
+      "suit": "♥",
+      "rank": "J"
+    },
+    {
+      "suit": "♣",
+      "rank": "J"
+    },
+    {
+      "suit": "♥",
+      "rank": "5"
+    },
+    {
+      "suit": "♠",
+      "rank": "8"
+    },
+    {
+      "suit": "♣",
+      "rank": "K"
+    },
+    {
+      "suit": "♦",
+      "rank": "5"
+    },
+    {
+      "suit": "♥",
+      "rank": "10"
+    },
+    {
+      "suit": "♥",
+      "rank": "7"
+    },
+    {
+      "suit": "♣",
+      "rank": "5"
+    },
+    {
+      "suit": "♦",
+      "rank": "10"
+    },
+    {
+      "suit": "♣",
+      "rank": "7"
+    },
+    {
+      "suit": "♥",
+      "rank": "3"
+    },
+    {
+      "suit": "♠",
+      "rank": "A"
+    },
+    {
+      "suit": "♠",
+      "rank": "7"
+    },
+    {
+      "suit": "♥",
+      "rank": "Q"
+    },
+    {
+      "suit": "♦",
+      "rank": "9"
+    },
+    {
+      "suit": "♠",
+      "rank": "Q"
+    },
+    {
+      "suit": "♥",
+      "rank": "4"
+    },
+    {
+      "suit": "♥",
+      "rank": "9"
+    },
+    {
+      "suit": "♠",
+      "rank": "5"
+    },
+    {
+      "suit": "♦",
+      "rank": "7"
+    },
+    {
+      "suit": "♣",
+      "rank": "9"
+    },
+    {
+      "suit": "♣",
+      "rank": "4"
+    },
+    {
+      "suit": "♦",
+      "rank": "J"
+    },
+    {
+      "suit": "♣",
+      "rank": "Q"
+    },
+    {
+      "suit": "♠",
+      "rank": "2"
+    },
+    {
+      "suit": "♣",
+      "rank": "3"
+    },
+    {
+      "suit": "♦",
+      "rank": "A"
+    },
+    {
+      "suit": "♥",
+      "rank": "K"
+    },
+    {
+      "suit": "♦",
+      "rank": "Q"
+    },
+    {
+      "suit": "♦",
+      "rank": "2"
+    },
+    {
+      "suit": "♥",
+      "rank": "8"
+    },
+    {
+      "suit": "♦",
+      "rank": "6"
+    }
+  ],
   "side_pots": [],
-  "min_bet": 0,
+  "min_bet": 20,
   "ready_players": [],
   "ready_start_time": null,
-  "action_start_time": null,
-  "timers": {}
+  "action_start_time": 1752907918.3481896,
+  "timers": {},
+  "showdown_start_time": 1752906806.8252287,
+  "hand_results": {
+    "type": "single_winner",
+    "winners": [
+      {
+        "player_id": "player1",
+        "pot_won": 30,
+        "net_gain": 10,
+        "hand_strength": null
+      }
+    ]
+  },
+  "hand_end_time": 1752906892.0752416,
+  "first_to_act": null,
+  "confirmed_players": [
+    "player2"
+  ],
+  "hand_id": "3d928b73-009b-446c-837c-a91528dd5f41"
 }

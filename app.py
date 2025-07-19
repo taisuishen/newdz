@@ -509,12 +509,64 @@ def get_game_state():
         'dealer_position': game_data.get('dealer_position', 0),
         'my_cards': current_player_cards,
         'ready_players': list(game_data.get('ready_players', set())),
-        'remaining_time': remaining_time
+        'remaining_time': remaining_time,
+        'hand_id': game_data.get('hand_id')
     }
     
     # 添加结算信息
     if game_data.get('hand_results'):
-        response_data['hand_results'] = game_data['hand_results']
+        # 转换hand_results格式，添加玩家统计信息
+        hand_results = []
+        results = game_data['hand_results']
+        
+        # 获取所有参与的玩家
+        participating_players = set()
+        for player_id, player in game_data['players'].items():
+            if player.get('position') is not None:
+                participating_players.add(player_id)
+        
+        # 获取获胜者ID列表
+        winner_ids = set()
+        if 'winners' in results:
+            for winner in results['winners']:
+                winner_ids.add(winner['player_id'])
+        
+        # 为每个参与的玩家生成结果信息
+        for player_id in participating_players:
+            player = game_data['players'][player_id]
+            is_winner = player_id in winner_ids
+            
+            # 计算该玩家的奖金和净收益
+            winnings = 0
+            net_gain = 0
+            hand_strength = None
+            
+            if is_winner:
+                for winner in results['winners']:
+                    if winner['player_id'] == player_id:
+                        winnings = winner['pot_won']
+                        net_gain = winner['net_gain']
+                        hand_strength = winner.get('hand_strength')
+                        break
+            else:
+                # 失败者的净收益是负的投入金额
+                net_gain = -player.get('current_bet', 0)
+            
+            # 获取手牌强度描述
+            hand_strength_text = get_hand_strength_description(hand_strength) if hand_strength else "未知"
+            
+            hand_results.append({
+                'player_id': player_id,
+                'player_name': player.get('name', player_id),
+                'is_winner': is_winner,
+                'winnings': winnings,
+                'net_gain': net_gain,
+                'hand_strength': hand_strength_text,
+                'wins': player.get('wins', 0),
+                'losses': player.get('losses', 0)
+            })
+        
+        response_data['hand_results'] = hand_results
     
     return jsonify(response_data)
 
@@ -773,6 +825,36 @@ def card_rank_value(rank):
         return 11
     else:
         return int(rank)
+
+def get_hand_strength_description(hand_strength):
+    """将手牌强度转换为可读描述"""
+    if not hand_strength:
+        return "未知"
+    
+    rank, values = hand_strength
+    
+    if rank == 9:
+        return "皇家同花顺"
+    elif rank == 8:
+        return f"同花顺 ({values[0]}高)"
+    elif rank == 7:
+        return f"四条 ({values[0]})"
+    elif rank == 6:
+        return f"葫芦 ({values[0]}带{values[1]})"
+    elif rank == 5:
+        return "同花"
+    elif rank == 4:
+        return f"顺子 ({values[0]}高)"
+    elif rank == 3:
+        return f"三条 ({values[0]})"
+    elif rank == 2:
+        return f"两对 ({values[0]}和{values[1]})"
+    elif rank == 1:
+        return f"一对 ({values[0]})"
+    elif rank == 0:
+        return f"高牌 ({values[0]})"
+    else:
+        return "未知牌型"
 
 def evaluate_hand(hole_cards, community_cards):
     """评估手牌强度"""
@@ -1069,10 +1151,31 @@ def calculate_hand_results(game_data, active_players, total_invested):
 
 def distribute_winnings(game_data, results):
     """分配奖金"""
+    # 获取参与本局游戏的所有玩家
+    participating_players = set()
+    for player_id, player in game_data['players'].items():
+        if player.get('position') is not None:
+            participating_players.add(player_id)
+            # 初始化统计字段（如果不存在）
+            if 'wins' not in player:
+                player['wins'] = 0
+            if 'losses' not in player:
+                player['losses'] = 0
+    
+    # 获取获胜者列表
+    winner_ids = set()
     for winner in results['winners']:
         player_id = winner['player_id']
         if player_id in game_data['players']:
             game_data['players'][player_id]['chips'] += winner['pot_won']
+            winner_ids.add(player_id)
+    
+    # 更新输赢统计
+    for player_id in participating_players:
+        if player_id in winner_ids:
+            game_data['players'][player_id]['wins'] += 1
+        else:
+            game_data['players'][player_id]['losses'] += 1
     
     # 重置游戏状态
     game_data['current_pot'] = 0
@@ -1135,7 +1238,7 @@ def player_ready():
     if game_data['players'][player_id].get('position') is None:
         return jsonify({'success': False, 'message': '请先选择座位'})
     
-    if game_data['game_state'] not in ['waiting', 'ready_phase']:
+    if game_data['game_state'] not in ['waiting', 'ready_phase', 'hand_ended']:
         return jsonify({'success': False, 'message': '当前无法准备'})
     
     # 添加到准备列表
@@ -1146,12 +1249,13 @@ def player_ready():
         game_data['ready_players'].append(player_id)
     
     # 如果是第一个准备的玩家，开始准备阶段
-    if game_data['game_state'] == 'waiting' and len(game_data['ready_players']) == 1:
+    if game_data['game_state'] in ['waiting', 'hand_ended'] and len(game_data['ready_players']) == 1:
         game_data['game_state'] = 'ready_phase'
         game_data['ready_start_time'] = time.time()
     
     # 检查是否所有玩家都准备好了
-    seated_players = [p for p in game_data['players'].values() if p.get('position') is not None]
+    seated_players = [p for p in game_data['players'].values() 
+                     if p.get('position') is not None and p.get('chips', 0) > 0]
     if len(game_data['ready_players']) >= len(seated_players) and len(seated_players) >= 2:
         # 所有人都准备好了，开始游戏
         start_game_internal(game_data, config)
@@ -1170,7 +1274,7 @@ def player_unready():
     
     game_data = load_game_data()
     
-    if game_data['game_state'] not in ['waiting', 'ready_phase']:
+    if game_data['game_state'] not in ['waiting', 'ready_phase', 'hand_ended']:
         return jsonify({'success': False, 'message': '当前无法取消准备'})
     
     # 从准备列表中移除
@@ -1297,6 +1401,10 @@ def start_game_internal(game_data, config):
     game_data['ready_players'] = []
     game_data['ready_start_time'] = None
     game_data['first_to_act'] = None  # 清除first_to_act标记
+    
+    # 生成唯一的手牌ID
+    import uuid
+    game_data['hand_id'] = str(uuid.uuid4())
     
     # 创建新牌组
     game_data['deck'] = create_deck()

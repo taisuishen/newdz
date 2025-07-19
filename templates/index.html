@@ -940,7 +940,6 @@
                 readySection.style.display = 'block';
                 gameInfo.style.display = 'none';
             } else {
-                readySection.style.display = 'none';
                 gameInfo.style.display = 'none';
                 
                 // 检查当前玩家是否已选择座位
@@ -952,6 +951,7 @@
                     readySection.style.display = 'block';
                 } else {
                     startBtn.style.display = 'block';
+                    readySection.style.display = 'none';
                     if (playerCount >= 2) {
                         startBtn.disabled = false;
                         startBtn.textContent = '开始游戏';
@@ -1006,11 +1006,25 @@
             // 处理showdown和hand_ended状态
             if (data.game_state === 'showdown') {
                 showShowdownModal(data);
+                // 确保手牌结果模态框关闭
+                const handResultModal = document.getElementById('handResultModal');
+                if (handResultModal) {
+                    handResultModal.style.display = 'none';
+                }
             } else if (data.game_state === 'hand_ended') {
                 hideShowdownModal();
-                if (data.hand_results) {
+                if (data.hand_results && !hasConfirmedHandResult) {
                     showHandResultModal(data.hand_results);
                 }
+            } else {
+                // 当游戏状态不是hand_ended时，确保手牌结果模态框关闭
+                hideShowdownModal();
+                const handResultModal = document.getElementById('handResultModal');
+                if (handResultModal) {
+                    handResultModal.style.display = 'none';
+                }
+                // 重置确认标志，为下一局做准备
+                hasConfirmedHandResult = false;
             }
         }
         
@@ -1097,12 +1111,13 @@
             const currentPlayerId = getCurrentPlayerId();
             const isReady = data.ready_players && data.ready_players.includes(currentPlayerId);
             
-            // 确保倒计时在游戏进行时也能显示
+            // 根据游戏状态显示相应的UI元素
             if (data.game_state === 'playing') {
                 readySection.style.display = 'block';
                 readyBtn.style.display = 'none';
                 readyStatus.style.display = 'none';
             } else {
+                // 在非游戏状态下（包括hand_ended），显示准备按钮
                 readyBtn.style.display = 'block';
                 readyStatus.style.display = 'block';
             }
@@ -1413,6 +1428,12 @@
                                  result.net_gain < 0 ? 'net-gain-negative' : '';
                 const gainText = result.net_gain > 0 ? `+${result.net_gain}` : result.net_gain.toString();
                 
+                // 获取输赢统计信息
+                const wins = result.wins || 0;
+                const losses = result.losses || 0;
+                const winRate = wins + losses > 0 ? ((wins / (wins + losses)) * 100).toFixed(1) : '0.0';
+                const statsText = `胜: ${wins} 负: ${losses} (胜率: ${winRate}%)`;
+                
                 if (result.is_winner) {
                     html += `
                         <div class="winner-info">
@@ -1420,6 +1441,7 @@
                             <div class="hand-strength">${result.hand_strength}</div>
                             <div>奖金: ${result.winnings}</div>
                             <div class="${gainClass}">净收益: ${gainText}</div>
+                            <div style="font-size: 12px; margin-top: 5px; opacity: 0.9;">${statsText}</div>
                         </div>
                     `;
                 } else {
@@ -1428,6 +1450,7 @@
                             <div><strong>${result.player_name}</strong></div>
                             <div class="hand-strength">${result.hand_strength}</div>
                             <div class="${gainClass}">净收益: ${gainText}</div>
+                            <div style="font-size: 12px; margin-top: 5px; opacity: 0.8;">${statsText}</div>
                         </div>
                     `;
                 }
@@ -1437,7 +1460,18 @@
             modal.style.display = 'block';
         }
         
+        // 用于跟踪当前玩家是否已确认手牌结果
+        let hasConfirmedHandResult = false;
+        
         function confirmHandResult() {
+            // 标记当前玩家已确认
+            hasConfirmedHandResult = true;
+            
+            // 直接关闭模态框
+            const modal = document.getElementById('handResultModal');
+            modal.style.display = 'none';
+            
+            // 调用后端API以维护服务器状态
             fetch('/api/confirm_hand_result', {
                 method: 'POST',
                 headers: {
@@ -1447,11 +1481,7 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
-                    const modal = document.getElementById('handResultModal');
-                    modal.style.display = 'none';
-                    loadGameState();
-                }
+                loadGameState();
             });
         }
 
