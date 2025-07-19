@@ -328,6 +328,10 @@
                         <span class="config-label">买入金额:</span>
                         <span class="config-value" id="currentBuyIn">{{ config.buy_in_amount }}</span>
                     </div>
+                    <div class="config-item">
+                        <span class="config-label">默认添加筹码:</span>
+                        <span class="config-value" id="currentDefaultAddChips">{{ config.get('default_add_chips', 1000) }}</span>
+                    </div>
                 </div>
 
                 <form id="configForm">
@@ -342,6 +346,10 @@
                     <div class="form-group">
                         <label for="buyInAmount">买入金额</label>
                         <input type="number" id="buyInAmount" name="buy_in_amount" value="{{ config.buy_in_amount }}" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="defaultAddChips">默认添加筹码</label>
+                        <input type="number" id="defaultAddChips" name="default_add_chips" value="{{ config.get('default_add_chips', 1000) }}" min="1" required>
                     </div>
                     <button type="submit" class="btn">更新配置</button>
                 </form>
@@ -578,6 +586,7 @@
             document.getElementById('currentSmallBlind').textContent = config.small_blind;
             document.getElementById('currentBigBlind').textContent = config.big_blind;
             document.getElementById('currentBuyIn').textContent = config.buy_in_amount;
+            document.getElementById('currentDefaultAddChips').textContent = config.default_add_chips || 1000;
         }
 
         // 更新玩家表格

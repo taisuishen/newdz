@@ -44,7 +44,8 @@ DEFAULT_CONFIG = {
     'big_blind': 20,
     'buy_in_amount': 1000,
     'action_timeout': 30,  # 玩家行动超时时间（秒）
-    'ready_timeout': 60    # 准备超时时间（秒）
+    'ready_timeout': 60,   # 准备超时时间（秒）
+    'default_add_chips': 1000  # 默认添加筹码金额
 }
 
 # 默认游戏数据
@@ -178,7 +179,11 @@ def load_game_data():
     if os.path.exists(GAME_DATA_FILE):
         with open(GAME_DATA_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
-    return DEFAULT_GAME_DATA.copy()
+    else:
+        # 文件不存在时，创建默认的游戏数据文件
+        default_data = DEFAULT_GAME_DATA.copy()
+        save_game_data(default_data)
+        return default_data
 
 def save_game_data(data):
     """保存游戏数据"""
@@ -343,18 +348,16 @@ def change_position():
 @login_required
 def add_chips():
     """添加筹码"""
-    data = request.get_json()
     player_id = session.get('player_id')
-    amount = data.get('amount', 0)
     
     if not player_id:
         return jsonify({'success': False, 'message': '请先加入游戏'})
     
-    if amount <= 0:
-        return jsonify({'success': False, 'message': '添加金额必须大于0'})
-    
     game_data = load_game_data()
     config = load_config()
+    
+    # 使用配置中的默认添加筹码金额
+    amount = config.get('default_add_chips', 1000)
     
     if player_id not in game_data['players']:
         return jsonify({'success': False, 'message': '玩家不存在'})
@@ -1109,6 +1112,7 @@ def update_config():
     config['buy_in_amount'] = int(data.get('buy_in_amount', config['buy_in_amount']))
     config['action_timeout'] = int(data.get('action_timeout', config['action_timeout']))
     config['ready_timeout'] = int(data.get('ready_timeout', config['ready_timeout']))
+    config['default_add_chips'] = int(data.get('default_add_chips', config.get('default_add_chips', 1000)))
     
     save_config(config)
     

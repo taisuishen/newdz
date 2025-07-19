@@ -323,23 +323,25 @@
         .player-info {
             position: fixed;
             bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 20px;
             background: rgba(0, 0, 0, 0.8);
             padding: 15px;
             border-radius: 10px;
-            text-align: center;
-            min-width: 300px;
+            text-align: left;
+            min-width: 200px;
         }
 
         .player-stats {
             display: flex;
-            justify-content: space-around;
+            flex-direction: column;
+            gap: 8px;
             margin-bottom: 10px;
         }
 
         .stat {
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .stat-label {
@@ -757,15 +759,14 @@
         </div>
     </div>
 
-    <!-- 添加筹码模态框 -->
+    <!-- 添加筹码确认模态框 -->
     <div id="addChipsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeAddChipsModal()">&times;</span>
             <h2>添加筹码</h2>
-            <div class="input-group">
-                <input type="number" id="addChipsAmount" placeholder="输入添加的筹码数量" min="1">
-            </div>
+            <p>确认添加默认筹码数量？</p>
             <button class="btn" onclick="addChips()">确认添加</button>
+            <button class="btn" onclick="closeAddChipsModal()" style="margin-left: 10px; background: #666;">取消</button>
         </div>
     </div>
 
@@ -1335,24 +1336,17 @@
         // 关闭添加筹码模态框
         function closeAddChipsModal() {
             document.getElementById('addChipsModal').style.display = 'none';
-            document.getElementById('addChipsAmount').value = '';
         }
 
         // 添加筹码
         async function addChips() {
-            const amount = parseInt(document.getElementById('addChipsAmount').value);
-            if (!amount || amount <= 0) {
-                alert('请输入有效的筹码数量');
-                return;
-            }
-
             try {
                 const response = await fetch('/api/add_chips', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ amount: amount })
+                    body: JSON.stringify({})
                 });
 
                 const result = await response.json();
@@ -1482,13 +1476,6 @@
         }
 
         // 移除了无效的playerIdInput事件监听器
-
-        // 回车键添加筹码
-        document.getElementById('addChipsAmount').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                addChips();
-            }
-        });
     </script>
 </body>
 </html>
