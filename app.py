@@ -555,4 +555,4 @@ def reset_game():
     return jsonify({'success': True, 'message': '游戏已重置'})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=8080)
