@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>德州扑克 - 后台管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #bdc3c7;
+            font-size: 1.1em;
+        }
+
+        .admin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .admin-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .admin-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-title {
+            font-size: 1.5em;
+            color: #ffd700;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ecf0f1;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #ffd700, #ffed4e);
+            color: #333;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .btn-info {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+        }
+
+        .btn-info:hover {
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .players-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .players-table th,
+        .players-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .players-table th {
+            background: rgba(255, 215, 0, 0.2);
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        .players-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: #2ecc71;
+        }
+
+        .status-offline {
+            background: #e74c3c;
+        }
+
+        .win-loss.positive {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+
+        .win-loss.negative {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        .current-config {
+            background: rgba(52, 152, 219, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .config-label {
+            color: #ecf0f1;
+        }
+
+        .config-value {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .quick-actions .btn {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert-success {
+            background: rgba(46, 204, 113, 0.2);
+            border: 1px solid #2ecc71;
+            color: #2ecc71;
+        }
+
+        .alert-error {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+            color: #e74c3c;
+        }
+
+        @media (max-width: 768px) {
+            .admin-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .quick-actions {
+                flex-direction: column;
+            }
+            
+            .quick-actions .btn {
+                width: 100%;
+            }
+            
+            .players-table {
+                font-size: 14px;
+            }
+            
+            .players-table th,
+            .players-table td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎰 德州扑克后台管理</h1>
+            <p>管理游戏配置和玩家信息</p>
+        </div>
+
+        <div id="alertContainer"></div>
+
+        <div class="admin-grid">
+            <!-- 游戏配置卡片 -->
+            <div class="admin-card">
+                <h2 class="card-title">⚙️ 游戏配置</h2>
+                
+                <div class="current-config">
+                    <h3 style="margin-bottom: 15px; color: #3498db;">当前配置</h3>
+                    <div class="config-item">
+                        <span class="config-label">小盲注:</span>
+                        <span class="config-value" id="currentSmallBlind">{{ config.small_blind }}</span>
+                    </div>
+                    <div class="config-item">
+                        <span class="config-label">大盲注:</span>
+                        <span class="config-value" id="currentBigBlind">{{ config.big_blind }}</span>
+                    </div>
+                    <div class="config-item">
+                        <span class="config-label">买入金额:</span>
+                        <span class="config-value" id="currentBuyIn">{{ config.buy_in_amount }}</span>
+                    </div>
+                </div>
+
+                <form id="configForm">
+                    <div class="form-group">
+                        <label for="smallBlind">小盲注</label>
+                        <input type="number" id="smallBlind" name="small_blind" value="{{ config.small_blind }}" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="bigBlind">大盲注</label>
+                        <input type="number" id="bigBlind" name="big_blind" value="{{ config.big_blind }}" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="buyInAmount">买入金额</label>
+                        <input type="number" id="buyInAmount" name="buy_in_amount" value="{{ config.buy_in_amount }}" min="1" required>
+                    </div>
+                    <button type="submit" class="btn">更新配置</button>
+                </form>
+            </div>
+
+            <!-- 游戏管理卡片 -->
+            <div class="admin-card">
+                <h2 class="card-title">🎮 游戏管理</h2>
+                
+                <div class="quick-actions">
+                    <button class="btn btn-info" onclick="refreshData()">刷新数据</button>
+                    <button id="startGameBtn" class="btn" onclick="startGame()" disabled>开始游戏</button>
+                    <button class="btn btn-danger" onclick="resetGame()">重置游戏</button>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-info" onclick="window.open('/', '_blank')">打开游戏页面</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 玩家信息卡片 -->
+        <div class="admin-card">
+            <h2 class="card-title">👥 在线玩家</h2>
+            <div id="playersContainer">
+                <table class="players-table">
+                    <thead>
+                        <tr>
+                            <th>状态</th>
+                            <th>玩家ID</th>
+                            <th>座位</th>
+                            <th>当前筹码</th>
+                            <th>输赢金额</th>
+                            <th>加入时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="playersTableBody">
+                        <!-- 玩家数据将通过JavaScript动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 更新配置
+        document.getElementById('configForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const config = {
+                small_blind: parseInt(formData.get('small_blind')),
+                big_blind: parseInt(formData.get('big_blind')),
+                buy_in_amount: parseInt(formData.get('buy_in_amount'))
+            };
+
+            try {
+                const response = await fetch('/api/update_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showAlert('配置更新成功！', 'success');
+                    updateCurrentConfig(result.config);
+                } else {
+                    showAlert('配置更新失败：' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('网络错误，请稍后重试', 'error');
+                console.error(error);
+            }
+        });
+
+        // 开始游戏
+        async function startGame() {
+            try {
+                const response = await fetch('/api/start_game', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showAlert('游戏开始成功！', 'success');
+                    refreshData();
+                } else {
+                    showAlert('开始游戏失败：' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('网络错误，请稍后重试', 'error');
+                console.error(error);
+            }
+        }
+
+        // 重置游戏
+        async function resetGame() {
+            if (!confirm('确定要重置游戏吗？这将清除所有玩家数据！')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/reset_game', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showAlert('游戏重置成功！', 'success');
+                    refreshData();
+                } else {
+                    showAlert('游戏重置失败：' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('网络错误，请稍后重试', 'error');
+                console.error(error);
+            }
+        }
+
+        // 刷新数据
+        async function refreshData() {
+            try {
+                const response = await fetch('/api/get_game_state');
+                const result = await response.json();
+                
+                updatePlayersTable(result.players);
+                updateCurrentConfig(result.config);
+                updateStartGameButton(result.players, result.game_state);
+                showAlert('数据刷新成功！', 'success');
+            } catch (error) {
+                showAlert('刷新数据失败', 'error');
+                console.error(error);
+            }
+        }
+
+        // 更新开始游戏按钮状态
+        function updateStartGameButton(players, gameState) {
+            const startBtn = document.getElementById('startGameBtn');
+            const playerCount = Object.keys(players).length;
+            
+            if (gameState === 'playing') {
+                startBtn.disabled = true;
+                startBtn.textContent = '游戏进行中';
+                startBtn.className = 'btn btn-info';
+            } else {
+                if (playerCount >= 2) {
+                    startBtn.disabled = false;
+                    startBtn.textContent = '开始游戏';
+                    startBtn.className = 'btn';
+                } else {
+                    startBtn.disabled = true;
+                    startBtn.textContent = `等待玩家 (${playerCount}/2)`;
+                    startBtn.className = 'btn btn-info';
+                }
+            }
+        }
+
+        // 更新当前配置显示
+        function updateCurrentConfig(config) {
+            document.getElementById('currentSmallBlind').textContent = config.small_blind;
+            document.getElementById('currentBigBlind').textContent = config.big_blind;
+            document.getElementById('currentBuyIn').textContent = config.buy_in_amount;
+        }
+
+        // 更新玩家表格
+        function updatePlayersTable(players) {
+            const tbody = document.getElementById('playersTableBody');
+            tbody.innerHTML = '';
+
+            if (Object.keys(players).length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #bdc3c7;">暂无在线玩家</td></tr>';
+                return;
+            }
+
+            Object.values(players).forEach(player => {
+                const row = document.createElement('tr');
+                const joinTime = new Date(player.joined_at).toLocaleString('zh-CN');
+                
+                row.innerHTML = `
+                    <td><span class="status-indicator status-online"></span>在线</td>
+                    <td>${player.id}</td>
+                    <td>${player.position || '未选择'}</td>
+                    <td>${player.chips}</td>
+                    <td class="win-loss ${player.win_loss >= 0 ? 'positive' : 'negative'}">${player.win_loss >= 0 ? '+' : ''}${player.win_loss}</td>
+                    <td>${joinTime}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // 显示提示信息
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            
+            alertContainer.innerHTML = '';
+            alertContainer.appendChild(alert);
+            
+            // 3秒后自动隐藏
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 3000);
+        }
+
+        // 页面加载时刷新数据
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshData();
+        });
+
+        // 定期刷新玩家数据
+        setInterval(refreshData, 5000);
+    </script>
+</body>
+</html>
