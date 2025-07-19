@@ -27,8 +27,8 @@ python app.py
 
 ### 3. 访问游戏
 
-- **游戏页面**：http://localhost:5000
-- **后台管理**：http://localhost:5000/admin
+- **游戏页面**：http://localhost:80
+- **后台管理**：http://localhost:80/admin
 
 ## 游戏说明
 
