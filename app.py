@@ -94,14 +94,15 @@ def deal_hole_cards(game_data):
         player['all_in'] = False
 
 def get_next_player_position(game_data, current_pos):
-    """获取下一个玩家位置"""
-    active_players = [p for p in game_data['players'].values() 
-                     if p.get('position') is not None and not p.get('folded', False) and p.get('chips', 0) > 0]
+    """获取下一个玩家位置（包括所有有座位的玩家）"""
+    # 获取所有有座位的玩家
+    seated_players = [p for p in game_data['players'].values() 
+                     if p.get('position') is not None]
     
-    if not active_players:
+    if not seated_players:
         return None
         
-    positions = sorted([p['position'] for p in active_players])
+    positions = sorted([p['position'] for p in seated_players])
     
     try:
         current_index = positions.index(current_pos)
@@ -297,7 +298,7 @@ def join_game():
         player = {
             'id': player_id,
             'chips': config['buy_in_amount'],
-            'win_loss': -config['buy_in_amount'],  # 初始输赢金额为负的买入金额
+            'borrow_count': 1,  # 初始借码次数为1
             'position': None,
             'joined_at': datetime.now().isoformat()
         }
@@ -360,7 +361,7 @@ def add_chips():
     
     player = game_data['players'][player_id]
     player['chips'] += amount
-    player['win_loss'] -= amount  # 添加筹码会减少输赢金额
+    player['borrow_count'] += 1  # 添加筹码会增加借码次数
     
     save_game_data(game_data)
     
@@ -458,6 +459,24 @@ def get_game_state():
     # 检查超时
     check_timeouts(game_data, config)
     
+    # 检查showdown状态
+    if game_data.get('game_state') == 'showdown':
+        if time.time() - game_data.get('showdown_start_time', 0) >= 5:
+            # 5秒后进入结算
+            active_players = [(pid, p) for pid, p in game_data['players'].items() 
+                             if p.get('position') is not None and not p.get('folded', False)]
+            total_invested = {}
+            for pid, player in game_data['players'].items():
+                if player.get('position') is not None:
+                    total_invested[pid] = player.get('current_bet', 0)
+            
+            results = calculate_hand_results(game_data, active_players, total_invested)
+            game_data['hand_results'] = results
+            game_data['game_state'] = 'hand_ended'
+            game_data['hand_end_time'] = time.time()
+            distribute_winnings(game_data, results)
+            save_game_data(game_data)
+    
     # 为当前玩家提供手牌信息
     current_player_cards = None
     if player_id and player_id in game_data['players']:
@@ -471,8 +490,11 @@ def get_game_state():
     elif game_data['game_state'] == 'playing' and game_data.get('action_start_time'):
         elapsed = time.time() - game_data['action_start_time']
         remaining_time = max(0, config['action_timeout'] - elapsed)
+    elif game_data['game_state'] == 'showdown' and game_data.get('showdown_start_time'):
+        elapsed = time.time() - game_data['showdown_start_time']
+        remaining_time = max(0, 5 - elapsed)
     
-    return jsonify({
+    response_data = {
         'players': game_data['players'],
         'config': config,
         'game_state': game_data['game_state'],
@@ -485,7 +507,13 @@ def get_game_state():
         'my_cards': current_player_cards,
         'ready_players': list(game_data.get('ready_players', set())),
         'remaining_time': remaining_time
-    })
+    }
+    
+    # 添加结算信息
+    if game_data.get('hand_results'):
+        response_data['hand_results'] = game_data['hand_results']
+    
+    return jsonify(response_data)
 
 @app.route('/api/player_action', methods=['POST'])
 @login_required
@@ -551,30 +579,70 @@ def player_action():
     
     elif action == 'raise':
         max_bet = max([p.get('current_bet', 0) for p in game_data['players'].values()])
-        call_amount = max_bet - player.get('current_bet', 0)
-        total_bet = call_amount + amount
+        current_player_bet = player.get('current_bet', 0)
         
-        if total_bet > player['chips']:
+        # amount 是玩家想要加注到的总金额
+        if amount <= max_bet:
+            return jsonify({'success': False, 'message': f'加注金额必须大于当前最大下注 {max_bet}'})
+        
+        # 计算需要投入的筹码数量
+        additional_bet = amount - current_player_bet
+        
+        if additional_bet > player['chips']:
             return jsonify({'success': False, 'message': '筹码不足'})
         
-        if amount < game_data.get('min_bet', config['big_blind']):
-            return jsonify({'success': False, 'message': f'加注金额至少为 {game_data.get("min_bet", config["big_blind"])}'})
+        if amount < max_bet + game_data.get('min_bet', config['big_blind']):
+            return jsonify({'success': False, 'message': f'加注金额至少为 {max_bet + game_data.get("min_bet", config["big_blind"])}'})
         
-        player['chips'] -= total_bet
-        player['current_bet'] += total_bet
-        game_data['current_pot'] += total_bet
+        player['chips'] -= additional_bet
+        player['current_bet'] = amount
+        game_data['current_pot'] += additional_bet
         
         if player['chips'] == 0:
             player['all_in'] = True
-            message = f'{player_id} 全押加注到 {player["current_bet"]}'
+            message = f'{player_id} 全押加注到 {amount}'
         else:
-            message = f'{player_id} 加注到 {player["current_bet"]}'
+            message = f'{player_id} 加注到 {amount}'
+    
+    elif action == 'allin':
+        # All In - 投入所有筹码
+        all_in_amount = player['chips']
+        if all_in_amount <= 0:
+            return jsonify({'success': False, 'message': '没有筹码可以全押'})
+        
+        player['chips'] = 0
+        player['current_bet'] += all_in_amount
+        player['all_in'] = True
+        game_data['current_pot'] += all_in_amount
+        
+        message = f'{player_id} 全押 {all_in_amount}'
     
     else:
         return jsonify({'success': False, 'message': '无效的行动'})
     
-    # 移动到下一个玩家
-    game_data['current_player'] = get_next_player_position(game_data, player['position'])
+    # 移动到下一个可以行动的玩家（跳过全押和弃牌玩家）
+    next_player_pos = get_next_player_position(game_data, player['position'])
+    
+    # 找到下一个可以行动的玩家
+    attempts = 0
+    max_attempts = 8  # 最多尝试8次（座位数）
+    while next_player_pos and attempts < max_attempts:
+        next_player = None
+        for p in game_data['players'].values():
+            if p.get('position') == next_player_pos:
+                next_player = p
+                break
+        
+        # 如果找到的玩家可以行动（未弃牌、未全押、有筹码），则停止
+        if (next_player and not next_player.get('folded', False) and 
+            not next_player.get('all_in', False) and next_player.get('chips', 0) > 0):
+            break
+        
+        # 否则继续找下一个玩家
+        next_player_pos = get_next_player_position(game_data, next_player_pos)
+        attempts += 1
+    
+    game_data['current_player'] = next_player_pos
     game_data['action_start_time'] = time.time()  # 重置行动计时
     
     # 检查是否需要进入下一轮或结束游戏
@@ -594,12 +662,41 @@ def check_betting_round_end(game_data):
         end_hand(game_data)
         return
     
-    # 检查所有活跃玩家是否都已行动且下注相等
+    # 获取可以继续行动的玩家（未弃牌、未全押、有筹码）
+    can_act_players = [p for p in active_players if not p.get('all_in', False) and p.get('chips', 0) > 0]
+    
+    # 如果没有玩家可以继续行动，直接进入下一轮
+    if len(can_act_players) == 0:
+        next_betting_round(game_data)
+        return
+    
+    # 如果只有一个玩家可以行动，直接进入下一轮
+    if len(can_act_players) == 1:
+        next_betting_round(game_data)
+        return
+    
+    # 检查所有活跃玩家的下注是否相等
     max_bet = max([p.get('current_bet', 0) for p in active_players])
     all_equal = all(p.get('current_bet', 0) == max_bet or p.get('all_in', False) for p in active_players)
     
-    if all_equal:
-        # 进入下一轮
+    if not all_equal:
+        return  # 下注不相等，继续当前轮
+    
+    # 所有下注相等的情况下，需要确保每个可行动的玩家都有机会行动
+    # 使用一个更简单的策略：记录每轮开始时的第一个行动玩家
+    # 当行动权回到这个玩家且所有下注相等时，结束这轮
+    
+    # 如果没有记录第一个行动玩家，记录当前玩家
+    if 'first_to_act' not in game_data:
+        game_data['first_to_act'] = game_data.get('current_player')
+    
+    current_player_pos = game_data.get('current_player')
+    first_to_act_pos = game_data.get('first_to_act')
+    
+    # 如果行动权回到了第一个行动的玩家，且所有下注相等，结束这轮
+    if current_player_pos == first_to_act_pos and all_equal:
+        # 清除第一个行动玩家的记录
+        game_data.pop('first_to_act', None)
         next_betting_round(game_data)
 
 def next_betting_round(game_data):
@@ -609,6 +706,9 @@ def next_betting_round(game_data):
     # 重置所有玩家的当前下注
     for player in game_data['players'].values():
         player['current_bet'] = 0
+    
+    # 清除第一个行动玩家的记录，为新一轮做准备
+    game_data.pop('first_to_act', None)
     
     if current_round == 'preflop':
         # 发翻牌（3张公共牌）
@@ -658,26 +758,320 @@ def next_betting_round(game_data):
         # 所有人都全押了，直接到摊牌
         end_hand(game_data)
 
-def end_hand(game_data):
-    """结束当前手牌"""
-    # 简化版本：将底池分给未弃牌的玩家
-    active_players = [p for p in game_data['players'].values() 
+def card_rank_value(rank):
+    """获取牌面值的数值"""
+    if rank == 'A':
+        return 14
+    elif rank == 'K':
+        return 13
+    elif rank == 'Q':
+        return 12
+    elif rank == 'J':
+        return 11
+    else:
+        return int(rank)
+
+def evaluate_hand(hole_cards, community_cards):
+    """评估手牌强度"""
+    all_cards = hole_cards + community_cards
+    
+    # 按花色分组
+    suits = {}
+    for card in all_cards:
+        suit = card['suit']
+        if suit not in suits:
+            suits[suit] = []
+        suits[suit].append(card_rank_value(card['rank']))
+    
+    # 按点数分组
+    ranks = {}
+    for card in all_cards:
+        rank = card_rank_value(card['rank'])
+        if rank not in ranks:
+            ranks[rank] = 0
+        ranks[rank] += 1
+    
+    # 检查同花
+    flush_suit = None
+    for suit, cards in suits.items():
+        if len(cards) >= 5:
+            flush_suit = suit
+            break
+    
+    # 检查顺子
+    sorted_ranks = sorted(ranks.keys(), reverse=True)
+    straight_high = None
+    
+    # 检查A-2-3-4-5的特殊顺子
+    if set([14, 2, 3, 4, 5]).issubset(set(sorted_ranks)):
+        straight_high = 5
+    else:
+        # 检查普通顺子
+        consecutive = 1
+        for i in range(1, len(sorted_ranks)):
+            if sorted_ranks[i-1] - sorted_ranks[i] == 1:
+                consecutive += 1
+                if consecutive >= 5:
+                    straight_high = sorted_ranks[i-4]
+                    break
+            else:
+                consecutive = 1
+    
+    # 检查同花顺
+    if flush_suit and straight_high:
+        flush_cards = sorted([card_rank_value(card['rank']) for card in all_cards if card['suit'] == flush_suit], reverse=True)
+        # 检查是否有同花顺
+        consecutive = 1
+        straight_flush_high = None
+        for i in range(1, len(flush_cards)):
+            if flush_cards[i-1] - flush_cards[i] == 1:
+                consecutive += 1
+                if consecutive >= 5:
+                    straight_flush_high = flush_cards[i-4]
+                    break
+            else:
+                consecutive = 1
+        
+        # 检查A-2-3-4-5同花顺
+        if set([14, 2, 3, 4, 5]).issubset(set(flush_cards)):
+            straight_flush_high = 5
+        
+        if straight_flush_high:
+            if straight_flush_high == 14:
+                return (9, [14])  # 皇家同花顺
+            else:
+                return (8, [straight_flush_high])  # 同花顺
+    
+    # 检查四条
+    four_kind = None
+    three_kind = None
+    pairs = []
+    
+    for rank, count in ranks.items():
+        if count == 4:
+            four_kind = rank
+        elif count == 3:
+            three_kind = rank
+        elif count == 2:
+            pairs.append(rank)
+    
+    if four_kind:
+        kicker = max([r for r in ranks.keys() if r != four_kind])
+        return (7, [four_kind, kicker])  # 四条
+    
+    # 检查葫芦
+    if three_kind and pairs:
+        return (6, [three_kind, max(pairs)])  # 葫芦
+    
+    # 检查同花
+    if flush_suit:
+        flush_cards = sorted([card_rank_value(card['rank']) for card in all_cards if card['suit'] == flush_suit], reverse=True)[:5]
+        return (5, flush_cards)  # 同花
+    
+    # 检查顺子
+    if straight_high:
+        return (4, [straight_high])  # 顺子
+    
+    # 检查三条
+    if three_kind:
+        kickers = sorted([r for r in ranks.keys() if r != three_kind], reverse=True)[:2]
+        return (3, [three_kind] + kickers)  # 三条
+    
+    # 检查两对
+    if len(pairs) >= 2:
+        pairs.sort(reverse=True)
+        kicker = max([r for r in ranks.keys() if r not in pairs[:2]])
+        return (2, pairs[:2] + [kicker])  # 两对
+    
+    # 检查一对
+    if pairs:
+        pair = pairs[0]
+        kickers = sorted([r for r in ranks.keys() if r != pair], reverse=True)[:3]
+        return (1, [pair] + kickers)  # 一对
+    
+    # 高牌
+    high_cards = sorted(ranks.keys(), reverse=True)[:5]
+    return (0, high_cards)  # 高牌
+
+def compare_hands(hand1, hand2):
+    """比较两手牌的大小，返回1表示hand1赢，-1表示hand2赢，0表示平局"""
+    rank1, values1 = hand1
+    rank2, values2 = hand2
+    
+    if rank1 > rank2:
+        return 1
+    elif rank1 < rank2:
+        return -1
+    else:
+        # 同样的牌型，比较具体数值
+        for v1, v2 in zip(values1, values2):
+            if v1 > v2:
+                return 1
+            elif v1 < v2:
+                return -1
+        return 0
+
+def calculate_side_pots(game_data):
+    """计算边池"""
+    active_players = [(pid, p) for pid, p in game_data['players'].items() 
                      if p.get('position') is not None and not p.get('folded', False)]
     
+    if len(active_players) <= 1:
+        return []
+    
+    # 按投入金额排序
+    players_by_investment = []
+    for pid, player in active_players:
+        investment = player.get('current_bet', 0)
+        players_by_investment.append((investment, pid, player))
+    
+    players_by_investment.sort()
+    
+    side_pots = []
+    prev_investment = 0
+    
+    for i, (investment, _, _) in enumerate(players_by_investment):
+        if investment > prev_investment:
+            pot_amount = (investment - prev_investment) * (len(active_players) - i)
+            eligible_players = [pid for _, pid, _ in players_by_investment[i:]]
+            side_pots.append({
+                'amount': pot_amount,
+                'eligible_players': eligible_players
+            })
+            prev_investment = investment
+    
+    return side_pots
+
+def end_hand(game_data):
+    """结束当前手牌"""
+    # 获取未弃牌的玩家
+    active_players = [(pid, p) for pid, p in game_data['players'].items() 
+                     if p.get('position') is not None and not p.get('folded', False)]
+    
+    # 记录每个玩家在这手牌中的投入
+    total_invested = {}
+    for player_id, player in game_data['players'].items():
+        if player.get('position') is not None:
+            total_invested[player_id] = player.get('current_bet', 0)
+    
+    # 检查是否有多个玩家all in
+    all_in_count = sum(1 for _, p in active_players if p.get('all_in', False))
+    
+    # 设置游戏状态为展示阶段
+    if all_in_count >= 2 and game_data.get('betting_round') != 'river':
+        # 发完所有公共牌
+        while len(game_data.get('community_cards', [])) < 5 and game_data['deck']:
+            game_data['community_cards'].append(game_data['deck'].pop())
+        
+        game_data['game_state'] = 'showdown'
+        game_data['showdown_start_time'] = time.time()
+        save_game_data(game_data)
+        return
+    
+    # 计算结果
+    results = calculate_hand_results(game_data, active_players, total_invested)
+    
+    # 设置结算信息
+    game_data['hand_results'] = results
+    game_data['game_state'] = 'hand_ended'
+    game_data['hand_end_time'] = time.time()
+    
+    # 分配奖金
+    distribute_winnings(game_data, results)
+    
+    save_game_data(game_data)
+
+def calculate_hand_results(game_data, active_players, total_invested):
+    """计算手牌结果"""
     if len(active_players) == 1:
         # 只有一个玩家，获得全部底池
-        winner = active_players[0]
-        winner['chips'] += game_data['current_pot']
-        winner['win_loss'] += game_data['current_pot']
+        winner_id, winner = active_players[0]
+        pot_won = game_data['current_pot']
+        net_gain = pot_won - total_invested.get(winner_id, 0)
+        
+        return {
+            'type': 'single_winner',
+            'winners': [{
+                'player_id': winner_id,
+                'pot_won': pot_won,
+                'net_gain': net_gain,
+                'hand_strength': None
+            }]
+        }
+    
+    # 多个玩家，需要比较牌力
+    community_cards = game_data.get('community_cards', [])
+    
+    # 计算边池
+    side_pots = calculate_side_pots(game_data)
+    
+    # 评估每个玩家的手牌
+    player_hands = {}
+    for pid, player in active_players:
+        hole_cards = player.get('hole_cards', [])
+        if hole_cards:
+            hand_strength = evaluate_hand(hole_cards, community_cards)
+            player_hands[pid] = {
+                'strength': hand_strength,
+                'hole_cards': hole_cards,
+                'player': player
+            }
+    
+    # 分配边池
+    winners = []
+    total_distributed = 0
+    
+    if side_pots:
+        for pot in side_pots:
+            eligible = [(pid, data) for pid, data in player_hands.items() 
+                       if pid in pot['eligible_players']]
+            
+            if eligible:
+                # 找出这个边池的赢家
+                best_hand = max(eligible, key=lambda x: x[1]['strength'])
+                pot_winners = [pid for pid, data in eligible 
+                             if compare_hands(data['strength'], best_hand[1]['strength']) == 0]
+                
+                pot_per_winner = pot['amount'] // len(pot_winners)
+                for winner_id in pot_winners:
+                    winners.append({
+                        'player_id': winner_id,
+                        'pot_won': pot_per_winner,
+                        'net_gain': pot_per_winner - total_invested.get(winner_id, 0),
+                        'hand_strength': player_hands[winner_id]['strength']
+                    })
+                    total_distributed += pot_per_winner
     else:
-        # 多个玩家，平分底池（简化处理）
-        pot_per_player = game_data['current_pot'] // len(active_players)
-        for player in active_players:
-            player['chips'] += pot_per_player
-            player['win_loss'] += pot_per_player
+        # 没有边池，直接比较所有玩家
+        if player_hands:
+            best_hand = max(player_hands.values(), key=lambda x: x['strength'])
+            pot_winners = [pid for pid, data in player_hands.items() 
+                         if compare_hands(data['strength'], best_hand['strength']) == 0]
+            
+            pot_per_winner = game_data['current_pot'] // len(pot_winners)
+            for winner_id in pot_winners:
+                net_gain = pot_per_winner - total_invested.get(winner_id, 0)
+                winners.append({
+                    'player_id': winner_id,
+                    'pot_won': pot_per_winner,
+                    'net_gain': net_gain,
+                    'hand_strength': player_hands[winner_id]['strength']
+                })
+    
+    return {
+        'type': 'showdown',
+        'winners': winners,
+        'all_hands': {pid: data['strength'] for pid, data in player_hands.items()}
+    }
+
+def distribute_winnings(game_data, results):
+    """分配奖金"""
+    for winner in results['winners']:
+        player_id = winner['player_id']
+        if player_id in game_data['players']:
+            game_data['players'][player_id]['chips'] += winner['pot_won']
     
     # 重置游戏状态
-    game_data['game_state'] = 'waiting'
     game_data['current_pot'] = 0
     game_data['community_cards'] = []
     game_data['current_player'] = None
@@ -686,7 +1080,7 @@ def end_hand(game_data):
     # 清理玩家状态
     for player in game_data['players'].values():
         player.pop('hole_cards', None)
-        player.pop('current_bet', None)
+        player['current_bet'] = 0
         player.pop('folded', None)
         player.pop('all_in', None)
     
@@ -791,6 +1185,91 @@ def player_unready():
     
     return jsonify({'success': True, 'message': '取消准备成功'})
 
+@app.route('/api/confirm_hand_result', methods=['POST'])
+@login_required
+def confirm_hand_result():
+    """确认手牌结果"""
+    player_id = session.get('player_id')
+    if not player_id:
+        return jsonify({'success': False, 'message': '请先加入游戏'})
+    
+    game_data = load_game_data()
+    
+    if game_data.get('game_state') != 'hand_ended':
+        return jsonify({'success': False, 'message': '当前没有结算结果'})
+    
+    # 添加到已确认列表
+    if 'confirmed_players' not in game_data:
+        game_data['confirmed_players'] = []
+    
+    if player_id not in game_data['confirmed_players']:
+        game_data['confirmed_players'].append(player_id)
+    
+    # 检查是否所有玩家都确认了
+    active_players = [pid for pid, p in game_data['players'].items() 
+                     if p.get('position') is not None]
+    
+    if len(game_data['confirmed_players']) >= len(active_players):
+        # 所有人都确认了，回到等待状态
+        game_data['game_state'] = 'waiting'
+        game_data.pop('hand_results', None)
+        game_data.pop('confirmed_players', None)
+        game_data.pop('hand_end_time', None)
+        
+        # 重置玩家状态，准备下一局
+        reset_players_for_next_hand(game_data)
+    
+    save_game_data(game_data)
+    
+    return jsonify({'success': True, 'message': '确认成功'})
+
+def reset_players_for_next_hand(game_data):
+    """重置玩家状态，准备下一局"""
+    # 重置底池和公共牌
+    game_data['current_pot'] = 0
+    game_data['community_cards'] = []
+    game_data['side_pots'] = []
+    game_data['betting_round'] = 'preflop'
+    game_data['min_bet'] = 0
+    
+    # 清除时间相关的状态
+    game_data.pop('action_start_time', None)
+    game_data.pop('showdown_start_time', None)
+    game_data.pop('first_to_act', None)
+    
+    # 重置所有玩家的手牌状态
+    for player_id, player in game_data['players'].items():
+        if player.get('position') is not None:
+            # 清除手牌相关状态
+            player.pop('hole_cards', None)
+            player.pop('current_bet', None)
+            player.pop('folded', None)
+            player.pop('all_in', None)
+            
+            # 移除筹码为0的玩家的座位
+            if player.get('chips', 0) <= 0:
+                player['position'] = None
+                player['chips'] = 0
+    
+    # 移动庄家位置到下一个有效玩家
+    active_positions = sorted([p['position'] for p in game_data['players'].values() 
+                              if p.get('position') is not None and p.get('chips', 0) > 0])
+    
+    if active_positions:
+        current_dealer = game_data.get('dealer_position', 0)
+        # 找到下一个有效位置
+        next_dealer = None
+        for pos in active_positions:
+            if pos > current_dealer:
+                next_dealer = pos
+                break
+        
+        # 如果没找到，使用第一个位置
+        if next_dealer is None:
+            next_dealer = active_positions[0]
+            
+        game_data['dealer_position'] = next_dealer
+
 def start_game_internal(game_data, config):
     """内部开始游戏函数"""
     # 检查有位置的玩家数量
@@ -808,6 +1287,7 @@ def start_game_internal(game_data, config):
     game_data['side_pots'] = []
     game_data['ready_players'] = []
     game_data['ready_start_time'] = None
+    game_data['first_to_act'] = None  # 清除first_to_act标记
     
     # 创建新牌组
     game_data['deck'] = create_deck()

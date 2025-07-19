@@ -374,7 +374,7 @@
                             <th>玩家ID</th>
                             <th>座位</th>
                             <th>当前筹码</th>
-                            <th>输赢金额</th>
+                            <th>借码次数</th>
                             <th>加入时间</th>
                         </tr>
                     </thead>
@@ -599,7 +599,7 @@
                     <td>${player.id}</td>
                     <td>${player.position || '未选择'}</td>
                     <td>${player.chips}</td>
-                    <td class="win-loss ${player.win_loss >= 0 ? 'positive' : 'negative'}">${player.win_loss >= 0 ? '+' : ''}${player.win_loss}</td>
+                    <td>${player.borrow_count || 1}</td>
                     <td>${joinTime}</td>
                 `;
                 

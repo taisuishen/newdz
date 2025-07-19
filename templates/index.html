@@ -150,6 +150,31 @@
             width: 300px;
         }
         
+        .pot-display {
+            position: absolute;
+            top: -80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px 25px;
+            border-radius: 15px;
+            border: 2px solid #ffd700;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+        
+        .pot-amount {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+        
+        .pot-label {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 5px;
+        }
+        
         #game-info {
             background: rgba(0, 0, 0, 0.7);
             padding: 15px;
@@ -397,6 +422,7 @@
         .btn-check { background: #4caf50; color: white; }
         .btn-call { background: #2196f3; color: white; }
         .btn-raise { background: #ff9800; color: white; }
+        .btn-allin { background: #9c27b0; color: white; }
         
         .action-buttons input {
             padding: 10px;
@@ -480,6 +506,69 @@
             width: 90%;
             max-width: 400px;
             text-align: center;
+        }
+        
+        .hand-result-modal {
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .showdown-modal {
+            max-width: 500px;
+        }
+        
+        .winner-info {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #2c3e50;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        
+        .player-hand-info {
+            background: #34495e;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .hand-strength {
+            color: #e74c3c;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        
+        .net-gain-positive {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        
+        .net-gain-negative {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        
+        #showdownTimer {
+            font-size: 18px;
+            color: #e74c3c;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        
+        #allCommunityCards {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        #allCommunityCards .card {
+            width: 50px;
+            height: 70px;
+            font-size: 14px;
         }
 
         .close {
@@ -565,6 +654,12 @@
             <div class="poker-table">
                 <!-- 游戏中央区域 -->
                 <div class="game-center">
+                    <!-- 底池显示 -->
+                    <div class="pot-display" id="pot-display" style="display: none;">
+                        <div class="pot-label">底池</div>
+                        <div class="pot-amount">¥<span id="pot-amount">0</span></div>
+                    </div>
+                    
                     <button id="startGameBtn" class="start-game-btn" onclick="startGame()" disabled>
                         开始游戏
                     </button>
@@ -644,12 +739,13 @@
                 <button onclick="playerAction('call')" class="btn-call" id="call-btn">跟注</button>
                 <button onclick="playerAction('raise')" class="btn-raise">加注</button>
                 <input type="number" id="raise-amount" placeholder="加注金额" min="1">
+                <button onclick="playerAction('allin')" class="btn-allin">All In</button>
             </div>
 
             <div class="player-info">
                 <div class="player-stats">
                     <div class="stat">
-                        <div class="stat-label">输赢金额</div>
+                        <div class="stat-label">借码次数</div>
                         <div class="stat-value win-loss" id="winLoss">0</div>
                     </div>
                     <div class="stat">
@@ -670,6 +766,25 @@
                 <input type="number" id="addChipsAmount" placeholder="输入添加的筹码数量" min="1">
             </div>
             <button class="btn" onclick="addChips()">确认添加</button>
+        </div>
+    </div>
+
+    <!-- 结算结果模态框 -->
+    <div id="handResultModal" class="modal">
+        <div class="modal-content hand-result-modal">
+            <h2>🎰 手牌结算</h2>
+            <div id="handResultContent"></div>
+            <button id="confirmResultBtn" onclick="confirmHandResult()" style="margin-top: 20px; padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">确认</button>
+        </div>
+    </div>
+
+    <!-- 展示阶段模态框 -->
+    <div id="showdownModal" class="modal">
+        <div class="modal-content showdown-modal">
+            <h2>🃏 摊牌阶段</h2>
+            <p>多名玩家全押，正在展示所有公共牌...</p>
+            <div id="showdownTimer">剩余时间: <span id="timerSeconds">5</span> 秒</div>
+            <div id="allCommunityCards" style="margin-top: 20px;"></div>
         </div>
     </div>
 
@@ -737,11 +852,11 @@
         function updatePlayerInfo() {
             if (!currentPlayer) return;
             
-            document.getElementById('winLoss').textContent = currentPlayer.win_loss;
+            document.getElementById('winLoss').textContent = currentPlayer.borrow_count;
             document.getElementById('currentChips').textContent = currentPlayer.chips;
             
             const winLossElement = document.getElementById('winLoss');
-            winLossElement.className = 'stat-value win-loss ' + (currentPlayer.win_loss >= 0 ? 'positive' : 'negative');
+            winLossElement.className = 'stat-value win-loss ' + (currentPlayer.borrow_count >= 0 ? 'positive' : 'negative');
         }
 
         // 更新游戏配置显示
@@ -784,6 +899,14 @@
             try {
                 const response = await fetch('/api/get_game_state');
                 const result = await response.json();
+                
+                // 更新当前玩家信息
+                const currentPlayerId = getCurrentPlayerId();
+                if (currentPlayerId && result.players[currentPlayerId]) {
+                    currentPlayer = result.players[currentPlayerId];
+                    currentPlayer.id = currentPlayerId;
+                    updatePlayerInfo();
+                }
                 
                 updateSeats(result.players, result.current_player, result.dealer_position, result.ready_players);
                 gameConfig = result.config;
@@ -845,6 +968,16 @@
         function updateGameInfo(data) {
             document.getElementById('current-pot').textContent = data.current_pot || 0;
             
+            // 更新牌桌上方的底池显示
+            const potDisplay = document.getElementById('pot-display');
+            const potAmount = document.getElementById('pot-amount');
+            if (data.game_state === 'playing' && data.current_pot > 0) {
+                potDisplay.style.display = 'block';
+                potAmount.textContent = data.current_pot;
+            } else {
+                potDisplay.style.display = 'none';
+            }
+            
             const roundNames = {
                 'preflop': '翻牌前',
                 'flop': '翻牌',
@@ -867,6 +1000,16 @@
                     cardElement.textContent = card.rank + card.suit;
                     communityContainer.appendChild(cardElement);
                 });
+            }
+            
+            // 处理showdown和hand_ended状态
+            if (data.game_state === 'showdown') {
+                showShowdownModal(data);
+            } else if (data.game_state === 'hand_ended') {
+                hideShowdownModal();
+                if (data.hand_results) {
+                    showHandResultModal(data.hand_results);
+                }
             }
         }
         
@@ -903,6 +1046,7 @@
             const currentPlayerId = getCurrentPlayerId();
             const player = data.players[currentPlayerId];
             
+            // 只有当游戏进行中、轮到当前玩家、玩家未弃牌且未全押时才显示操作按钮
             if (data.game_state === 'playing' && player && 
                 data.current_player === player.position && 
                 !player.folded && !player.all_in) {
@@ -942,6 +1086,7 @@
         
         // 更新准备状态
         function updateReadyStatus(data) {
+            const readySection = document.getElementById('ready-section');
             const readyBtn = document.getElementById('ready-btn');
             const readyStatus = document.getElementById('ready-status');
             const countdownTimer = document.getElementById('countdown-timer');
@@ -950,6 +1095,16 @@
             
             const currentPlayerId = getCurrentPlayerId();
             const isReady = data.ready_players && data.ready_players.includes(currentPlayerId);
+            
+            // 确保倒计时在游戏进行时也能显示
+            if (data.game_state === 'playing') {
+                readySection.style.display = 'block';
+                readyBtn.style.display = 'none';
+                readyStatus.style.display = 'none';
+            } else {
+                readyBtn.style.display = 'block';
+                readyStatus.style.display = 'block';
+            }
             
             // 更新准备按钮
             if (isReady) {
@@ -965,7 +1120,7 @@
             const totalPlayers = Object.keys(data.players).filter(id => data.players[id].position !== null).length;
             readyStatus.textContent = `已准备: ${readyCount}/${totalPlayers}`;
             
-            // 更新倒计时
+            // 更新倒计时 - 确保所有玩家都能看到
             if (data.remaining_time !== null && data.remaining_time !== undefined) {
                 const seconds = Math.ceil(data.remaining_time);
                 if (seconds > 0) {
@@ -973,7 +1128,15 @@
                     if (data.game_state === 'ready_phase') {
                         countdownTimer.textContent = `准备倒计时: ${seconds}秒`;
                     } else if (data.game_state === 'playing') {
-                        countdownTimer.textContent = `行动倒计时: ${seconds}秒`;
+                        // 显示当前行动玩家信息
+                        let currentPlayerName = '未知玩家';
+                        for (const [playerId, player] of Object.entries(data.players)) {
+                            if (player.position === data.current_player) {
+                                currentPlayerName = playerId;
+                                break;
+                            }
+                        }
+                        countdownTimer.textContent = `${currentPlayerName} 行动中: ${seconds}秒`;
                     }
                 } else {
                     countdownTimer.style.display = 'none';
@@ -1109,7 +1272,7 @@
                         const seatInfo = seat.querySelector('.seat-info');
                         seatInfo.innerHTML = `
                             <div style="font-weight: bold; margin-bottom: 2px;">${player.id}</div>
-                            <div style="font-size: 10px; color: ${player.win_loss >= 0 ? '#00ff00' : '#ff4444'};">输赢: ${player.win_loss}</div>
+                            <div style="font-size: 10px; color: #ffd700;">借码: ${player.borrow_count || 1}</div>
                             <div style="font-size: 10px; color: #ffd700;">余额: ${player.chips}</div>
                             <div style="font-size: 10px; color: #ccc;">${statusText}</div>
                         `;
@@ -1202,12 +1365,91 @@
         // 离开游戏
         function leaveGame() {
             if (confirm('确定要离开牌桌吗？')) {
-                currentPlayer = null;
-                gameConfig = null;
-                document.getElementById('loginScreen').style.display = 'flex';
-                document.getElementById('gameScreen').style.display = 'none';
-                document.getElementById('playerIdInput').value = '';
+                window.location.href = '/login';
             }
+        }
+        
+        function showShowdownModal(gameState) {
+            const modal = document.getElementById('showdownModal');
+            const timerElement = document.getElementById('timerSeconds');
+            const cardsElement = document.getElementById('allCommunityCards');
+            
+            // 显示所有公共牌
+            if (gameState.community_cards && gameState.community_cards.length > 0) {
+                cardsElement.innerHTML = '';
+                gameState.community_cards.forEach(card => {
+                    const cardElement = document.createElement('div');
+                    cardElement.className = 'card';
+                    if (card.suit === '♥' || card.suit === '♦') {
+                        cardElement.classList.add('red');
+                    }
+                    cardElement.textContent = card.rank + card.suit;
+                    cardsElement.appendChild(cardElement);
+                });
+            }
+            
+            timerElement.textContent = gameState.remaining_time || 5;
+            modal.style.display = 'block';
+        }
+        
+        function hideShowdownModal() {
+            const modal = document.getElementById('showdownModal');
+            modal.style.display = 'none';
+        }
+        
+        function showHandResultModal(handResults) {
+            if (!handResults || handResults.length === 0) return;
+            
+            const modal = document.getElementById('handResultModal');
+            const content = document.getElementById('handResultContent');
+            
+            let html = '';
+            
+            handResults.forEach(result => {
+                const gainClass = result.net_gain > 0 ? 'net-gain-positive' : 
+                                 result.net_gain < 0 ? 'net-gain-negative' : '';
+                const gainText = result.net_gain > 0 ? `+${result.net_gain}` : result.net_gain.toString();
+                
+                if (result.is_winner) {
+                    html += `
+                        <div class="winner-info">
+                            🏆 ${result.player_name} 获胜！
+                            <div class="hand-strength">${result.hand_strength}</div>
+                            <div>奖金: ${result.winnings}</div>
+                            <div class="${gainClass}">净收益: ${gainText}</div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="player-hand-info">
+                            <div><strong>${result.player_name}</strong></div>
+                            <div class="hand-strength">${result.hand_strength}</div>
+                            <div class="${gainClass}">净收益: ${gainText}</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            content.innerHTML = html;
+            modal.style.display = 'block';
+        }
+        
+        function confirmHandResult() {
+            fetch('/api/confirm_hand_result', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const modal = document.getElementById('handResultModal');
+                    modal.style.display = 'none';
+                    loadGameState();
+                }
+            });
         }
 
         // 页面加载完成后自动加入游戏
@@ -1230,12 +1472,7 @@
             }
         }
 
-        // 回车键加入游戏
-        document.getElementById('playerIdInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                joinGame();
-            }
-        });
+        // 移除了无效的playerIdInput事件监听器
 
         // 回车键添加筹码
         document.getElementById('addChipsAmount').addEventListener('keypress', function(e) {
