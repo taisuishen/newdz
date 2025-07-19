@@ -1316,10 +1316,19 @@
 
         // 显示添加筹码模态框
         function showAddChipsModal() {
-            if (currentPlayer && currentPlayer.chips > 0) {
+            console.log('当前玩家:', currentPlayer);
+            console.log('当前筹码:', currentPlayer ? currentPlayer.chips : 'undefined');
+            
+            if (!currentPlayer) {
+                alert('请先加入游戏');
+                return;
+            }
+            
+            if (currentPlayer.chips > 0) {
                 alert('当前还有筹码，无需添加');
                 return;
             }
+            
             document.getElementById('addChipsModal').style.display = 'block';
         }
 

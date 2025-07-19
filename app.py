@@ -1237,6 +1237,10 @@ def reset_players_for_next_hand(game_data):
     game_data.pop('showdown_start_time', None)
     game_data.pop('first_to_act', None)
     
+    # 重置准备状态
+    game_data['ready_players'] = []
+    game_data.pop('ready_start_time', None)
+    
     # 重置所有玩家的手牌状态
     for player_id, player in game_data['players'].items():
         if player.get('position') is not None:
@@ -1245,6 +1249,7 @@ def reset_players_for_next_hand(game_data):
             player.pop('current_bet', None)
             player.pop('folded', None)
             player.pop('all_in', None)
+            player.pop('ready', None)  # 清除准备状态
             
             # 移除筹码为0的玩家的座位
             if player.get('chips', 0) <= 0:
