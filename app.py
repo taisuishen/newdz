@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import json
 import os
 import uuid
@@ -6,9 +6,33 @@ import random
 import time
 import threading
 from datetime import datetime
+from functools import wraps
 
 app = Flask(__name__)
 app.secret_key = 'texas_poker_secret_key'
+
+# 用户认证配置
+USERS_FILE = 'users.json'
+ADMIN_USERS = {'admin': 'admin123'}  # 管理员账户
+
+# 默认用户数据
+DEFAULT_USERS = {
+    'admin': {
+        'password': 'admin123',
+        'role': 'admin',
+        'created_at': datetime.now().isoformat()
+    },
+    'player1': {
+        'password': '123456',
+        'role': 'player',
+        'created_at': datetime.now().isoformat()
+    },
+    'player2': {
+        'password': '123456',
+        'role': 'player',
+        'created_at': datetime.now().isoformat()
+    }
+}
 
 # 游戏配置文件路径
 CONFIG_FILE = 'game_config.json'
@@ -160,25 +184,107 @@ def save_game_data(data):
     with open(GAME_DATA_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+def load_users():
+    """加载用户数据"""
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return DEFAULT_USERS.copy()
+
+def save_users(users):
+    """保存用户数据"""
+    with open(USERS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+
+def login_required(f):
+    """登录验证装饰器"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'username' not in session:
+            return jsonify({'success': False, 'message': '请先登录', 'redirect': '/login'})
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    """管理员权限验证装饰器"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'username' not in session:
+            return jsonify({'success': False, 'message': '请先登录'})
+        users = load_users()
+        username = session['username']
+        if username not in users or users[username].get('role') != 'admin':
+            return jsonify({'success': False, 'message': '需要管理员权限'})
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/')
 def index():
     """主游戏页面"""
+    if 'username' not in session:
+        return redirect(url_for('login'))
     return render_template('index.html')
+
+@app.route('/login')
+def login():
+    """登录页面"""
+    return render_template('login.html')
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    """用户登录"""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not username or not password:
+        return jsonify({'success': False, 'message': '请输入用户名和密码'})
+    
+    users = load_users()
+    
+    if username not in users:
+        return jsonify({'success': False, 'message': '用户名不存在'})
+    
+    if users[username]['password'] != password:
+        return jsonify({'success': False, 'message': '密码错误'})
+    
+    session['username'] = username
+    session['role'] = users[username].get('role', 'player')
+    
+    return jsonify({
+        'success': True, 
+        'message': '登录成功',
+        'role': users[username].get('role', 'player')
+    })
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    """用户登出"""
+    session.clear()
+    return jsonify({'success': True, 'message': '已退出登录'})
 
 @app.route('/admin')
 def admin():
     """后台管理页面"""
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    
+    users = load_users()
+    username = session['username']
+    if username not in users or users[username].get('role') != 'admin':
+        return redirect(url_for('index'))
+    
     config = load_config()
     return render_template('admin.html', config=config)
 
 @app.route('/api/join_game', methods=['POST'])
+@login_required
 def join_game():
     """玩家加入游戏"""
-    data = request.get_json()
-    player_id = data.get('player_id', '').strip()
+    player_id = session.get('username')
     
     if not player_id:
-        return jsonify({'success': False, 'message': '请输入有效的玩家ID'})
+        return jsonify({'success': False, 'message': '用户未登录'})
     
     game_data = load_game_data()
     config = load_config()
@@ -207,6 +313,7 @@ def join_game():
     })
 
 @app.route('/api/change_position', methods=['POST'])
+@login_required
 def change_position():
     """切换玩家位置"""
     data = request.get_json()
@@ -232,6 +339,7 @@ def change_position():
     return jsonify({'success': True, 'message': '位置切换成功'})
 
 @app.route('/api/add_chips', methods=['POST'])
+@login_required
 def add_chips():
     """添加筹码"""
     data = request.get_json()
@@ -340,6 +448,7 @@ def check_timeouts(game_data, config):
             save_game_data(game_data)
 
 @app.route('/api/get_game_state')
+@login_required
 def get_game_state():
     """获取游戏状态"""
     game_data = load_game_data()
@@ -379,6 +488,7 @@ def get_game_state():
     })
 
 @app.route('/api/player_action', methods=['POST'])
+@login_required
 def player_action():
     """玩家行动"""
     data = request.get_json()
@@ -594,6 +704,7 @@ def end_hand(game_data):
             game_data['dealer_position'] = positions[0]
 
 @app.route('/api/update_config', methods=['POST'])
+@admin_required
 def update_config():
     """更新游戏配置"""
     data = request.get_json()
@@ -610,6 +721,7 @@ def update_config():
     return jsonify({'success': True, 'message': '配置更新成功', 'config': config})
 
 @app.route('/api/player_ready', methods=['POST'])
+@login_required
 def player_ready():
     """玩家准备"""
     player_id = session.get('player_id')
@@ -651,6 +763,7 @@ def player_ready():
     return jsonify({'success': True, 'message': '准备成功'})
 
 @app.route('/api/player_unready', methods=['POST'])
+@login_required
 def player_unready():
     """取消准备"""
     player_id = session.get('player_id')
@@ -716,6 +829,7 @@ def start_game_internal(game_data, config):
     return True
 
 @app.route('/api/start_game', methods=['POST'])
+@admin_required
 def start_game():
     """手动开始游戏（管理员功能）"""
     game_data = load_game_data()
@@ -739,10 +853,104 @@ def start_game():
         return jsonify({'success': False, 'message': '开始游戏失败'})
 
 @app.route('/api/reset_game', methods=['POST'])
+@admin_required
 def reset_game():
     """重置游戏"""
     save_game_data(DEFAULT_GAME_DATA.copy())
     return jsonify({'success': True, 'message': '游戏已重置'})
+
+@app.route('/api/get_users', methods=['GET'])
+@admin_required
+def get_users():
+    """获取用户列表"""
+    users = load_users()
+    # 不返回密码信息
+    safe_users = {}
+    for username, user_data in users.items():
+        safe_users[username] = {
+            'role': user_data.get('role', 'player'),
+            'created_at': user_data.get('created_at', '')
+        }
+    return jsonify({'success': True, 'users': safe_users})
+
+@app.route('/api/add_user', methods=['POST'])
+@admin_required
+def add_user():
+    """添加用户"""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    role = data.get('role', 'player')
+    
+    if not username or not password:
+        return jsonify({'success': False, 'message': '用户名和密码不能为空'})
+    
+    if role not in ['admin', 'player']:
+        return jsonify({'success': False, 'message': '角色必须是admin或player'})
+    
+    users = load_users()
+    
+    if username in users:
+        return jsonify({'success': False, 'message': '用户名已存在'})
+    
+    users[username] = {
+        'password': password,
+        'role': role,
+        'created_at': datetime.now().isoformat()
+    }
+    
+    save_users(users)
+    return jsonify({'success': True, 'message': '用户添加成功'})
+
+@app.route('/api/delete_user', methods=['POST'])
+@admin_required
+def delete_user():
+    """删除用户"""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    
+    if not username:
+        return jsonify({'success': False, 'message': '用户名不能为空'})
+    
+    if username == 'admin':
+        return jsonify({'success': False, 'message': '不能删除管理员账户'})
+    
+    users = load_users()
+    
+    if username not in users:
+        return jsonify({'success': False, 'message': '用户不存在'})
+    
+    del users[username]
+    save_users(users)
+    
+    # 同时从游戏中移除该玩家
+    game_data = load_game_data()
+    if username in game_data['players']:
+        del game_data['players'][username]
+        save_game_data(game_data)
+    
+    return jsonify({'success': True, 'message': '用户删除成功'})
+
+@app.route('/api/change_password', methods=['POST'])
+@admin_required
+def change_password():
+    """修改用户密码"""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    new_password = data.get('new_password', '').strip()
+    
+    if not username or not new_password:
+        return jsonify({'success': False, 'message': '用户名和新密码不能为空'})
+    
+    users = load_users()
+    
+    if username not in users:
+        return jsonify({'success': False, 'message': '用户不存在'})
+    
+    users[username]['password'] = new_password
+    save_users(users)
+    
+    return jsonify({'success': True, 'message': '密码修改成功'})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=80)

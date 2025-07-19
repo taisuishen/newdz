@@ -25,43 +25,49 @@
             padding: 10px;
         }
 
-        .login-screen {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            text-align: center;
-        }
-
-        .login-box {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 30px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            width: 90%;
-            max-width: 400px;
-        }
-
-        .login-box h1 {
-            margin-bottom: 30px;
-            font-size: 2.5em;
-            color: #ffd700;
-        }
-
-        .input-group {
-            margin-bottom: 20px;
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 15px;
-            border: none;
+        .user-info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
             border-radius: 8px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
-            font-size: 16px;
+            color: white;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .user-info .username {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        .top-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .logout-btn {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
         }
 
         .btn {
@@ -83,7 +89,6 @@
         }
 
         .game-screen {
-            display: none;
             min-height: 100vh;
             position: relative;
         }
@@ -493,6 +498,7 @@
             .poker-table {
                 width: 95vw;
                 height: 50vh;
+                margin-top: 80px;
             }
             
             .player-seat {
@@ -507,8 +513,28 @@
                 padding: 10px;
             }
             
-            .game-config {
+            .user-info {
                 top: 10px;
+                left: 10px;
+                right: 10px;
+                padding: 8px 12px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+            
+            .top-controls {
+                justify-content: center;
+                gap: 8px;
+            }
+            
+            .top-controls button {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            
+            .game-config {
+                top: 80px;
                 right: 10px;
                 font-size: 12px;
                 padding: 10px;
@@ -518,14 +544,13 @@
 </head>
 <body>
     <div class="container">
-        <!-- 登录界面 -->
-        <div id="loginScreen" class="login-screen">
-            <div class="login-box">
-                <h1>🃏 德州扑克</h1>
-                <div class="input-group">
-                    <input type="text" id="playerIdInput" placeholder="请输入您的玩家ID" maxlength="20">
-                </div>
-                <button class="btn" onclick="joinGame()">加入牌桌</button>
+        <!-- 用户信息 -->
+        <div class="user-info">
+            <div class="username" id="current-username">加载中...</div>
+            <div class="top-controls">
+                <button class="btn-small" onclick="showAddChipsModal()">添加筹码</button>
+                <button class="btn-small btn-danger" onclick="leaveGame()">离开牌桌</button>
+                <button class="logout-btn" onclick="logout()">退出登录</button>
             </div>
         </div>
 
@@ -632,10 +657,6 @@
                         <div class="stat-value" id="currentChips">0</div>
                     </div>
                 </div>
-                <div class="controls">
-                    <button class="btn-small" onclick="showAddChipsModal()">添加筹码</button>
-                    <button class="btn-small btn-danger" onclick="leaveGame()">离开牌桌</button>
-                </div>
             </div>
         </div>
     </div>
@@ -656,46 +677,60 @@
         let currentPlayer = null;
         let gameConfig = null;
 
-        // 加入游戏
-        async function joinGame() {
-            const playerId = document.getElementById('playerIdInput').value.trim();
-            if (!playerId) {
-                alert('请输入玩家ID');
-                return;
-            }
-
+        // 页面加载时自动加入游戏
+        async function autoJoinGame() {
             try {
                 const response = await fetch('/api/join_game', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ player_id: playerId })
+                    body: JSON.stringify({})
                 });
 
                 const result = await response.json();
                 if (result.success) {
                     currentPlayer = result.player;
                     gameConfig = result.config;
-                    // 保存玩家ID到sessionStorage
-                    sessionStorage.setItem('player_id', playerId);
-                    showGameScreen();
                     updatePlayerInfo();
                     updateGameConfig();
                     loadGameState();
+                    
+                    // 显示当前用户名
+                    document.getElementById('current-username').textContent = currentPlayer.id;
                 } else {
-                    alert(result.message);
+                    if (result.redirect) {
+                        window.location.href = result.redirect;
+                    } else {
+                        alert(result.message);
+                    }
                 }
             } catch (error) {
-                alert('连接服务器失败');
-                console.error(error);
+                console.error('自动加入游戏失败:', error);
+                window.location.href = '/login';
             }
         }
 
-        // 显示游戏界面
-        function showGameScreen() {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('gameScreen').style.display = 'block';
+        // 退出登录
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    window.location.href = '/login';
+                } else {
+                    alert('退出登录失败');
+                }
+            } catch (error) {
+                console.error('退出登录失败:', error);
+                window.location.href = '/login';
+            }
         }
 
         // 更新玩家信息
@@ -902,7 +937,7 @@
         
         // 获取当前玩家ID
         function getCurrentPlayerId() {
-            return sessionStorage.getItem('player_id');
+            return currentPlayer ? currentPlayer.id : null;
         }
         
         // 更新准备状态
@@ -1175,6 +1210,11 @@
             }
         }
 
+        // 页面加载完成后自动加入游戏
+        document.addEventListener('DOMContentLoaded', function() {
+            autoJoinGame();
+        });
+        
         // 定期更新游戏状态
         setInterval(() => {
             if (currentPlayer) {

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>德州扑克 - 登录</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0f4c3a, #1a5f4a);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .login-title {
+            font-size: 2.5em;
+            color: #ffd700;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-subtitle {
+            color: #ccc;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ecf0f1;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .login-btn {
+            background: linear-gradient(45deg, #ffd700, #ffed4e);
+            color: #333;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 215, 0, 0.4);
+        }
+
+        .login-btn:disabled {
+            background: #7f8c8d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .error-message {
+            background: rgba(231, 76, 60, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message {
+            background: rgba(46, 204, 113, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .demo-accounts {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(52, 152, 219, 0.2);
+            border-radius: 10px;
+            border: 1px solid rgba(52, 152, 219, 0.3);
+        }
+
+        .demo-accounts h3 {
+            color: #3498db;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .demo-account {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .demo-account .role {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #ffd700;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1 class="login-title">🃏 德州扑克</h1>
+        <p class="login-subtitle">请登录以开始游戏</p>
+        
+        <div id="error-message" class="error-message"></div>
+        <div id="success-message" class="success-message"></div>
+        
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+            </div>
+            
+            <button type="submit" class="login-btn" id="login-btn">
+                登录
+            </button>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+            </div>
+        </form>
+        
+        <div class="demo-accounts">
+            <h3>🎮 演示账户</h3>
+            <div class="demo-account">
+                <span>admin / admin123</span>
+                <span class="role">管理员</span>
+            </div>
+            <div class="demo-account">
+                <span>player1 / 123456</span>
+                <span class="role">玩家</span>
+            </div>
+            <div class="demo-account">
+                <span>player2 / 123456</span>
+                <span class="role">玩家</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const loginBtn = document.getElementById('login-btn');
+            const loading = document.getElementById('loading');
+            const errorMessage = document.getElementById('error-message');
+            const successMessage = document.getElementById('success-message');
+            
+            if (!username || !password) {
+                showError('请输入用户名和密码');
+                return;
+            }
+            
+            // 显示加载状态
+            loginBtn.disabled = true;
+            loading.style.display = 'block';
+            hideMessages();
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('登录成功，正在跳转...');
+                    setTimeout(() => {
+                        if (result.role === 'admin') {
+                            window.location.href = '/admin';
+                        } else {
+                            window.location.href = '/';
+                        }
+                    }, 1000);
+                } else {
+                    showError(result.message || '登录失败');
+                }
+            } catch (error) {
+                console.error('登录错误:', error);
+                showError('网络错误，请重试');
+            } finally {
+                loginBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+        
+        function showError(message) {
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+        
+        function showSuccess(message) {
+            const successMessage = document.getElementById('success-message');
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+        }
+        
+        function hideMessages() {
+            document.getElementById('error-message').style.display = 'none';
+            document.getElementById('success-message').style.display = 'none';
+        }
+        
+        // 演示账户快速填充
+        document.querySelectorAll('.demo-account').forEach(account => {
+            account.addEventListener('click', function() {
+                const text = this.querySelector('span').textContent;
+                const [username, password] = text.split(' / ');
+                document.getElementById('username').value = username;
+                document.getElementById('password').value = password;
+            });
+        });
+    </script>
+</body>
+</html>
